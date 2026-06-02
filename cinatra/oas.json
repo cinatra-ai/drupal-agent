@@ -1,0 +1,340 @@
+{
+  "agentspec_version": "26.1.0",
+  "component_type": "Flow",
+  "id": "drupal-content-editor-flow",
+  "name": "Drupal Agent",
+  "description": "Edits and publishes content to a connected Drupal CMS instance.",
+  "metadata": {
+    "cinatra": {
+      "type": "node",
+      "packageName": "@cinatra-ai/drupal-agent",
+      "packageVersion": "0.1.3"
+    }
+  },
+  "inputs": [
+    {
+      "title": "instanceId",
+      "type": "string"
+    },
+    {
+      "title": "nodeId",
+      "type": "string"
+    },
+    {
+      "title": "nodeBundle",
+      "type": "string"
+    },
+    {
+      "title": "nodeStatus",
+      "type": "string"
+    },
+    {
+      "title": "instructions",
+      "type": "string"
+    }
+  ],
+  "outputs": [
+    {
+      "title": "nodeId",
+      "type": "string"
+    },
+    {
+      "title": "changes",
+      "type": "array",
+      "json_schema": {
+        "items": {
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "start_node": {
+    "$component_ref": "start"
+  },
+  "nodes": [
+    {
+      "$component_ref": "start"
+    },
+    {
+      "$component_ref": "load_node"
+    },
+    {
+      "$component_ref": "emit_output"
+    },
+    {
+      "$component_ref": "end"
+    }
+  ],
+  "control_flow_connections": [
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "start_to_load_node",
+      "from_node": {
+        "$component_ref": "start"
+      },
+      "to_node": {
+        "$component_ref": "load_node"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "load_node_to_emit_output",
+      "from_node": {
+        "$component_ref": "load_node"
+      },
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "emit_output_to_end",
+      "from_node": {
+        "$component_ref": "emit_output"
+      },
+      "to_node": {
+        "$component_ref": "end"
+      }
+    }
+  ],
+  "data_flow_connections": [
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_load_node_instanceId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_load_node_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_load_node_nodeBundle",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeBundle",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "nodeBundle"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_load_node_nodeStatus",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeStatus",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_load_node_instructions",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instructions",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "instructions"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_end_nodeId",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_end_changes",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_emit_output_nodeId",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_emit_output_changes",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "changes"
+    }
+  ],
+  "$referenced_components": {
+    "start": {
+      "component_type": "StartNode",
+      "id": "start",
+      "name": "Inputs",
+      "inputs": [
+        {
+          "title": "instanceId",
+          "type": "string"
+        },
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "nodeBundle",
+          "type": "string"
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string"
+        },
+        {
+          "title": "instructions",
+          "type": "string"
+        }
+      ]
+    },
+    "load_node": {
+      "component_type": "ApiNode",
+      "id": "load_node",
+      "name": "Load + edit node",
+      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "http_method": "POST",
+      "data": {
+        "system": "You are the Drupal content editor. Apply user instructions to the specified node, handling draft revision workflow. Read SKILL.md before acting.",
+        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- instructions: {{ instructions }}\n\nFollow the steps in SKILL.md. First call drupal_node_get to read current content. If nodeStatus is 'published', call drupal_node_create_draft_revision BEFORE drupal_node_update. Return JSON: {\"nodeId\":\"...\",\"changes\":[{\"field\":\"...\",\"before\":\"...\",\"after\":\"...\"}]}",
+        "agent_id": "drupal-content-editor",
+        "cinatra_llm": {
+          "preferredProvider": "openai",
+          "preferredModel": "gpt-5.5"
+        }
+      },
+      "inputs": [
+        {
+          "title": "instanceId",
+          "type": "string"
+        },
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "nodeBundle",
+          "type": "string"
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string"
+        },
+        {
+          "title": "instructions",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "write",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent"
+        }
+      }
+    },
+    "emit_output": {
+      "component_type": "OutputMessageNode",
+      "id": "emit_output",
+      "name": "Emit JSON output as agent message",
+      "inputs": [
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "message": "{# {{ changes }} #}{\"nodeId\":\"{{ nodeId }}\",\"changes\":{{ changes | tojson }}}"
+    },
+    "end": {
+      "component_type": "EndNode",
+      "id": "end",
+      "name": "Outputs",
+      "outputs": [
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
