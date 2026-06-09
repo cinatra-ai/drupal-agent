@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output (tsc outDir)
+dist/
+
+# Test coverage
+coverage/
+
+# No committed lockfile — CI installs with --no-frozen-lockfile
+pnpm-lock.yaml
+
+# npm pack output
+*.tgz
+
+# Secrets — never commit
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
