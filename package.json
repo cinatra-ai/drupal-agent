@@ -4,6 +4,10 @@
   "license": "Apache-2.0",
   "description": "Edits Drupal content nodes from natural language instructions via the Drupal MCP server.",
   "type": "module",
+  "files": [
+    "cinatra",
+    "skills"
+  ],
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
