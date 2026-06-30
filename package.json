@@ -11,6 +11,35 @@
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
-    "dependencies": []
+    "dependencies": [
+      {
+        "packageName": "@cinatra-ai/drupal-mcp-connector",
+        "edgeType": "runtime",
+        "versionConstraint": {
+          "kind": "exact",
+          "version": "0.1.4"
+        },
+        "requirement": "required",
+        "kind": "connector"
+      }
+    ],
+    "consumes": [
+      {
+        "primitive": "drupal_node_get",
+        "requirement": "required"
+      },
+      {
+        "primitive": "drupal_node_update",
+        "requirement": "required"
+      },
+      {
+        "primitive": "drupal_node_create_draft_revision",
+        "requirement": "required"
+      },
+      {
+        "primitive": "drupal_node_publish",
+        "requirement": "required"
+      }
+    ]
   }
 }
