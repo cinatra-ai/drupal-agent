@@ -11,6 +11,7 @@
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
+    "displayName": "Drupal Agent",
     "dependencies": [
       {
         "packageName": "@cinatra-ai/drupal-mcp-connector",
@@ -40,6 +41,15 @@
         "primitive": "drupal_node_publish",
         "requirement": "required"
       }
-    ]
+    ],
+    "packageType": "agent",
+    "manifestVersion": 1,
+    "sourceTemplateId": "drupal-content-editor-flow",
+    "sourceVersionId": "3eb2cfc3-55df-4de5-a65c-b1ed1254f1f5",
+    "sourceVersionNumber": 1,
+    "riskLevel": "low",
+    "hasApprovalGates": false,
+    "toolAccess": [],
+    "ownerOrgId": null
   }
 }
