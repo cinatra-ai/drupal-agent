@@ -1,6 +1,6 @@
 # drupal-agent — AGENTS.md
 
-Agent-specific guidance for `@cinatra/drupal-agent`. Read alongside the repo-root `AGENTS.md` and the skill file at `skills/drupal-agent/SKILL.md`.
+Agent-specific guidance for `@cinatra/drupal-agent`. Read alongside the repo-root `AGENTS.md` and the agent instructions in `cinatra/oas.json` (the `load_node` node's `data.system`).
 
 ## Agent role
 
@@ -41,7 +41,7 @@ The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts
 
 ## Draft revision workflow (critical)
 
-Published nodes must NEVER be edited directly. The SKILL.md enforces:
+Published nodes must NEVER be edited directly. The agent prompt enforces:
 
 1. `drupal_node_get` → read current content
 2. If `nodeStatus === "published"` → `drupal_node_create_draft_revision` first
