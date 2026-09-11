@@ -47,7 +47,18 @@
       "type": "array",
       "json_schema": {
         "items": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "before": {
+              "type": "string"
+            },
+            "after": {
+              "type": "string"
+            }
+          }
         }
       }
     }
@@ -313,7 +324,18 @@
           "type": "array",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -340,7 +362,18 @@
           "type": "array",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -361,7 +394,18 @@
           "type": "array",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
