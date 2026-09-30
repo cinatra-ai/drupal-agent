@@ -13,3 +13,4 @@
 // Add a suite by importing it below.
 
 import "./oas-bridge-output-declarations.test.mjs";
+import "./page-snapshot-filed-and-reviewed.test.mjs";
