@@ -71,6 +71,21 @@
       "$component_ref": "start"
     },
     {
+      "$component_ref": "read_node"
+    },
+    {
+      "$component_ref": "compose_change"
+    },
+    {
+      "$component_ref": "file_page"
+    },
+    {
+      "$component_ref": "gather_page_review"
+    },
+    {
+      "$component_ref": "page_review_gate"
+    },
+    {
       "$component_ref": "load_node"
     },
     {
@@ -83,9 +98,59 @@
   "control_flow_connections": [
     {
       "component_type": "ControlFlowEdge",
-      "name": "start_to_load_node",
+      "name": "start_to_read_node",
       "from_node": {
         "$component_ref": "start"
+      },
+      "to_node": {
+        "$component_ref": "read_node"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "read_node_to_compose_change",
+      "from_node": {
+        "$component_ref": "read_node"
+      },
+      "to_node": {
+        "$component_ref": "compose_change"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "compose_change_to_file_page",
+      "from_node": {
+        "$component_ref": "compose_change"
+      },
+      "to_node": {
+        "$component_ref": "file_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "file_page_to_gather_page_review",
+      "from_node": {
+        "$component_ref": "file_page"
+      },
+      "to_node": {
+        "$component_ref": "gather_page_review"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "gather_page_review_to_page_review_gate",
+      "from_node": {
+        "$component_ref": "gather_page_review"
+      },
+      "to_node": {
+        "$component_ref": "page_review_gate"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "page_review_gate_to_load_node",
+      "from_node": {
+        "$component_ref": "page_review_gate"
       },
       "to_node": {
         "$component_ref": "load_node"
@@ -113,6 +178,222 @@
     }
   ],
   "data_flow_connections": [
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_read_node_instanceId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "read_node"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_read_node_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "read_node"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_read_node_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "read_node"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_compose_change_instructions",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instructions",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "instructions"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_compose_change_title",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_compose_change_body",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_compose_change_fieldValues",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_compose_change_address",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "address",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "address"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_compose_change_error",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_compose_change_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "compose_change"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_file_page_pageTitle",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "pageTitle",
+      "destination_node": {
+        "$component_ref": "file_page"
+      },
+      "destination_input": "pageTitle"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_file_page_pageForm",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "pageForm",
+      "destination_node": {
+        "$component_ref": "file_page"
+      },
+      "destination_input": "pageForm"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_file_page_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "file_page"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "file_page_to_gather_page_review_pageArtifactId",
+      "source_node": {
+        "$component_ref": "file_page"
+      },
+      "source_output": "artifactId",
+      "destination_node": {
+        "$component_ref": "gather_page_review"
+      },
+      "destination_input": "pageArtifactId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "file_page_to_gather_page_review_pageRevisionId",
+      "source_node": {
+        "$component_ref": "file_page"
+      },
+      "source_output": "representationRevisionId",
+      "destination_node": {
+        "$component_ref": "gather_page_review"
+      },
+      "destination_input": "pageRevisionId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_gather_page_review_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "gather_page_review"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "gather_page_review_to_page_review_gate_reviewTargets",
+      "source_node": {
+        "$component_ref": "gather_page_review"
+      },
+      "source_output": "reviewTargets",
+      "destination_node": {
+        "$component_ref": "page_review_gate"
+      },
+      "destination_input": "reviewTargets"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_page_review_gate_pageTitle",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "pageTitle",
+      "destination_node": {
+        "$component_ref": "page_review_gate"
+      },
+      "destination_input": "pageTitle"
+    },
     {
       "component_type": "DataFlowEdge",
       "name": "start_to_load_node_instanceId",
@@ -184,6 +465,78 @@
         "$component_ref": "load_node"
       },
       "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_load_node_title",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_load_node_body",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_load_node_fieldValues",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_load_node_proposedFields",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "proposedFields",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "proposedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "file_page_to_load_node_artifactId",
+      "source_node": {
+        "$component_ref": "file_page"
+      },
+      "source_output": "artifactId",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "artifactId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "file_page_to_load_node_representationRevisionId",
+      "source_node": {
+        "$component_ref": "file_page"
+      },
+      "source_output": "representationRevisionId",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "representationRevisionId"
     },
     {
       "component_type": "DataFlowEdge",
@@ -272,6 +625,480 @@
         }
       ]
     },
+    "read_node": {
+      "component_type": "ApiNode",
+      "id": "read_node",
+      "name": "Read the page",
+      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "http_method": "POST",
+      "data": {
+        "system": "You are the Drupal content reader. Read the specified node and hand its current values to the next step. You change nothing on the site.\n\n## Rules\n\n1. Call `drupal_node_get` first to read current content before any changes.\n\n## Steps\n\n**STEP 1 — Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.\n\n**STEP 2 — Compose the public address:** Call `drupal_instances_list` and take the item whose `id` equals `instanceId`. Take its `siteUrl`, remove every trailing slash, then append `/node/` and the node id. When no item matches, or the site address does not start with `https://`, the address is the empty string.\n\n## What each output field holds\n\n- `title` — the node's title as the read answers it.\n- `body` — the raw source markup of `body` exactly as the read answers it; the empty string when the read carries no `body`.\n- `fieldValues` — one item per field of the read whose name starts with `field_` and whose value is text: `field` is the field name and `value` its value as text.\n- `address` — the node's public address from STEP 2.\n- `error` — `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId` and `nodeId` from the most recent user message.\n\n## What to NEVER do\n\n- Never write to the site: this step only reads.\n- Never invent a field or a value: hand over only what the read answered.",
+        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n\nFollow the steps in the system instructions: read the node with drupal_node_get, compose its public address from drupal_instances_list, and fill the declared output fields.",
+        "agent_id": "drupal-content-editor",
+        "agent_run_id": "{{ agent_run_id }}",
+        "cinatra_llm": {
+          "preferredProvider": "openai",
+          "preferredModel": "gpt-5.5"
+        }
+      },
+      "inputs": [
+        {
+          "title": "instanceId",
+          "type": "string"
+        },
+        {
+          "title": "nodeId",
+          "type": "string"
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "title",
+          "type": "string"
+        },
+        {
+          "title": "body",
+          "type": "string"
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "address",
+          "type": "string"
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent"
+        }
+      }
+    },
+    "compose_change": {
+      "component_type": "ApiNode",
+      "id": "compose_change",
+      "name": "Compose the change and the page form",
+      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "http_method": "POST",
+      "data": {
+        "agent_id": "drupal-content-editor",
+        "toolbox_ids": [],
+        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill three declared output fields: `pageTitle`, `proposedFields` and `pageForm`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `proposedFields` — one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change.\n- `pageForm` — the page snapshot's content form, by the rules below.\n\n## The page form\n\n- `cinatraCmsPage` is 1 and `system` is \"drupal\".\n- `page.title` is the title as read. `page.address` is the `address` the read step answered, or null when it is empty. `page.cmsAddress` is that address followed by `/edit`, or null when the address is empty. The form has no `readAt` key.\n- `excerpts` lists the changed blocks in page order, ONE entry per changed block and none for an unchanged one. `region` is the field the block lives in (`title`, `body` or the `field_` name).\n- The title is one block: region `title`, position 0, kind `heading`, level 1.\n- The value of every other field is split into its top-level blocks in document order by ONE rule: a heading element h1 to h6 is kind `heading` with its level; a paragraph is kind `paragraph`; every item of a list is its own block of kind `list-item`; a value without markup is one paragraph block at position 0. `level` is null for a block that is not a heading.\n- `position` is the block's zero-based index inside its region.\n- `published` is the block's plain words as read and `proposed` its plain words after the change, with every markup tag removed. An added block has `published` '' and a removed block `proposed` ''.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `excerpts` [] and `proposedFields` [].\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is:\n\n--- example form begin ---\n{\"cinatraCmsPage\":1,\"system\":\"drupal\",\"page\":{\"title\":\"Opening hours\",\"address\":\"https://www.example.org/node/7\",\"cmsAddress\":\"https://www.example.org/node/7/edit\"},\"excerpts\":[{\"region\":\"title\",\"position\":0,\"kind\":\"heading\",\"level\":1,\"published\":\"Opening hours\",\"proposed\":\"Opening hours and holidays\"},{\"region\":\"body\",\"position\":1,\"kind\":\"paragraph\",\"level\":null,\"published\":\"We open at nine on weekdays.\",\"proposed\":\"We open at eight on weekdays.\"},{\"region\":\"body\",\"position\":3,\"kind\":\"list-item\",\"level\":null,\"published\":\"Saturday: closed\",\"proposed\":\"Saturday: ten to two\"}]}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
+        "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the three declared output fields as the system instructions state.",
+        "agent_run_id": "{{ agent_run_id }}",
+        "cinatra_llm": {
+          "preferredProvider": "openai",
+          "preferredModel": "gpt-5.5"
+        }
+      },
+      "inputs": [
+        {
+          "title": "instructions",
+          "type": "string"
+        },
+        {
+          "title": "title",
+          "type": "string"
+        },
+        {
+          "title": "body",
+          "type": "string"
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "address",
+          "type": "string"
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "pageTitle",
+          "type": "string"
+        },
+        {
+          "title": "proposedFields",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "pageForm",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "cinatraCmsPage": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "string"
+              },
+              "page": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cmsAddress": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "excerpts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "region": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "heading",
+                        "paragraph",
+                        "list-item"
+                      ]
+                    },
+                    "level": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "published": {
+                      "type": "string"
+                    },
+                    "proposed": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent"
+        }
+      }
+    },
+    "file_page": {
+      "component_type": "ApiNode",
+      "id": "file_page",
+      "name": "File the page snapshot",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "artifact_materialize",
+        "input": {
+          "extension": "@cinatra-ai/cms-snapshot-artifact",
+          "objectTypeId": "@cinatra-ai/cms-snapshot-artifact:cms-page",
+          "declaredMime": "application/json",
+          "title": "{{ pageTitle }}",
+          "content": "{# pyagentspec-input-hint (do not remove): {{ pageForm }} #}{{ pageForm | tojson }}",
+          "node_id": "file_page"
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "pageTitle",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "pageForm",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "cinatraCmsPage": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "string"
+              },
+              "page": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cmsAddress": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "excerpts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "region": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "heading",
+                        "paragraph",
+                        "list-item"
+                      ]
+                    },
+                    "level": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "published": {
+                      "type": "string"
+                    },
+                    "proposed": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "artifactId",
+          "type": "string"
+        },
+        {
+          "title": "representationRevisionId",
+          "type": "string"
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "write",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review."
+        }
+      }
+    },
+    "gather_page_review": {
+      "component_type": "ApiNode",
+      "id": "gather_page_review",
+      "name": "Gather the page snapshot's review target",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "review_targets",
+          "input": {
+            "op": "review",
+            "reviewTargets": "[{\"artifactId\": \"{{ pageArtifactId }}\", \"representationRevisionId\": \"{{ pageRevisionId }}\"}]"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}",
+        "result_input_passthrough": true,
+        "result_id_field": "ok"
+      },
+      "inputs": [
+        {
+          "title": "pageArtifactId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "pageRevisionId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "reviewTargets",
+          "type": "string",
+          "default": "[]"
+        },
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "write",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review."
+        }
+      }
+    },
+    "page_review_gate": {
+      "component_type": "InputMessageNode",
+      "id": "page_review_gate",
+      "name": "Review the page snapshot",
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": true,
+          "surfaceGateInputs": true,
+          "a2uiSurfaceId": "drupal-agent:page-review",
+          "inputMessageSchema": {
+            "type": "object",
+            "properties": {
+              "reviewNote": {
+                "type": "string",
+                "title": "A note on the review"
+              }
+            }
+          },
+          "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review.",
+          "artifactReview": {
+            "targetsInput": "reviewTargets"
+          }
+        }
+      },
+      "inputs": [
+        {
+          "title": "pageTitle",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "reviewTargets",
+          "type": "string",
+          "default": "[]"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "pageReviewNote",
+          "type": "string"
+        }
+      ]
+    },
     "load_node": {
       "component_type": "ApiNode",
       "id": "load_node",
@@ -279,8 +1106,8 @@
       "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content editor. Apply user instructions to the specified node, handling draft revision workflow. Read the instructions below before acting.\n\nYou are the Drupal content editor. Apply the user's instructions to the specified node.\n\n## Rules\n\n1. Call `drupal_node_get` first to read current content before any changes.\n2. If `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` BEFORE editing — never modify published content directly. This protects the live frontend from mid-edit churn. This applies only when you are ACTUALLY applying an edit (Rule 6's guard found at least one actionable change) — never create a draft revision for a node you are not going to change.\n3. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n4. Return JSON in this exact shape for a SUCCESSFUL edit (`proposalId` appears ONLY on an outcome where a draft revision was actually saved — never on the NO-CHANGE result): `{ \"nodeId\": \"...\", \"proposalId\": \"...\", \"changes\": [{ \"field\": \"...\", \"before\": \"...\", \"after\": \"...\" }] }` (plus optional `changeSetId` — see Rule 5). The widget reads `changes[]` to render diff highlights. A task where nothing actually needs changing uses the NO-CHANGE RESULT shape in Step 4 instead — no write is made, so it carries no `proposalId`.\n5. **Correlation ids (the draft is already saved when the diff renders):** your STEP 2/3 writes save the change as a draft revision *before* the diff card appears, so the card must carry ids linking it to that saved draft — accepting the change performs **no further write**; the admin surface just refreshes the editor to the draft revision you already saved. Mint `proposalId` yourself: `\"dp-\" + nodeId + \"-\" + a short random suffix` (6+ lowercase letters/digits), unique within this conversation. Include `changeSetId` ONLY when a `drupal_node_create_draft_revision` / `drupal_node_update` response surfaces a revision identifier (e.g. a `vid`) for the saved draft; omit it otherwise — never invent one. Both are opaque correlation strings, not secrets and not authorization.\n6. **No-content-write guard — never edit content when nothing needs changing.** Before any CONTENT write, compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. A field whose requested value already EXACTLY equals its current value needs no write; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 3 — never guess). If NO field needs an actual change, make NO Drupal CONTENT write of any kind — neither `drupal_node_create_draft_revision` nor `drupal_node_update` — and return the NO-CHANGE RESULT (Step 4). This guard governs CONTENT writes only and never suppresses an explicit publish request: if the user explicitly asked to publish, `drupal_node_publish` is still the right call (see the NEVER list) even when no field changed — that path is unchanged. A reviewer finding is never a publish request.\n\n## Repair-shaped tasks (reviewer findings)\n\nMost tasks are a fresh, free-form edit request. Some tasks are a REPAIR ROUND instead: the `instructions` you receive describe REVIEWER FINDINGS on a change already proposed for this same node — a reviewer asked for changes before approving it, and you are being asked to correct THIS node so every finding is resolved. The `instructions` text identifies itself as this kind of task (framed as a list of findings/issues to address, not a general request) — when it does, follow this section IN ADDITION to the Rules and Steps. Nothing else about the input contract, the tool calls, or the output shapes changes: the same `drupal_*`-driven Steps 1-4 flow — read first (Step 1); draft-revision-then-update ONLY when Rule 6's guard finds at least one actionable field change; otherwise NO content write at all, returning the NO-CHANGE RESULT (Step 4) — and the same output JSON shapes.\n\n- Treat every finding named in `instructions` as a required correction. Read the node first (Step 1) exactly as usual; then, ONLY when Rule 6's guard finds at least one actionable change, apply what resolves each actionable finding through the SAME primitives and the SAME draft-revision → update → return flow as any other task.\n- Apply only what the findings ask for. Rule 3 (only touch what was explicitly requested) applies with extra force on a repair round — the findings ARE the request; do not use a repair round as a chance to make additional, unrelated changes.\n- If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your fix to that field. If a finding is too vague to act on safely, do not guess at an unrelated fix — apply the findings you CAN confidently resolve, and let the `changes[]` you return reflect what you actually did, never what you were asked to do but didn't. If NO finding is actionable — each one is too vague to act on safely, or already satisfied by the node's current state — Rule 6's guard applies: make no Drupal content write at all, especially not a `drupal_node_create_draft_revision` call, and return the NO-CHANGE RESULT (Step 4).\n- Everything else is unchanged on a repair round: `proposalId` / `changeSetId` minting (Rule 5), the draft-revision protection for a published node (Rule 2), and never calling `drupal_node_publish` unless the user explicitly asks (a reviewer finding is not a publish request), all apply exactly the same way they do to a fresh edit.\n\n## Steps\n\n**STEP 1 — Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.\n\n**STEP 2 — Decide whether a content write is needed, then draft check:** First apply Rule 6's guard: compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. If NO field needs an actual change, make NO Drupal content write — skip the rest of this step AND Step 3, and return the NO-CHANGE RESULT shape (Step 4); an explicit publish request is unaffected and still proceeds per Rule 6. Otherwise: if `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` with `instanceId` + `nodeId` BEFORE making any edits; if `nodeStatus === \"draft\"`, skip the draft-revision call.\n\n**STEP 3 — Apply changes (reached only when Step 2's guard found at least one actionable change):** Call `drupal_node_update` with `instanceId` + `nodeId` + `fields` (object map of field name → new value). Only include fields the user explicitly asked to change.\n\n**STEP 4 — Return diff:** Emit a single JSON object as the final assistant message:\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"proposalId\": \"dp-7-m2x8vb\",\n  \"changeSetId\": \"vid-58\",\n  \"changes\": [\n    { \"field\": \"title\", \"before\": \"Old headline\", \"after\": \"New headline\" },\n    { \"field\": \"body\", \"before\": \"Old body...\", \"after\": \"New body...\" }\n  ]\n}\n```\n\nNO-CHANGE RESULT (nothing needed changing — every requested value already matches the current node, or nothing requested was concrete enough to act on safely — so NO content write was made and a published node STAYS published):\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"changes\": []\n}\n```\n\nNo `proposalId` (nothing was saved) — an empty `changes` array IS the machine-readable no-change signal, exactly as the caller's contract already reads it. Never create a draft revision in this outcome, and never pad `changes[]` with a no-op entry to make it look like an edit happened. **An explicit publish request is NOT a no-change — and it has a shape.** Publishing is a real action, but it is not a field edit: it saves no draft revision and produces no field diff, so neither `proposalId` nor a populated `changes[]` can honestly describe it. When the user explicitly asked to publish and no field also needed changing, call `drupal_node_publish` (Rule 6) and return the SAME key set as the shape above — `nodeId`, `instanceId`, `changes: []`, and NO `proposalId` — where the empty `changes[]` reports that there is no field diff to render, NOT that nothing happened. When a publish accompanies real field edits, those edits ARE a successful edit: use the SUCCESSFUL EDIT shape above (with `proposalId`) exactly as usual.\n\nOn a SUCCESSFUL edit, `proposalId` is REQUIRED — mint it per Rule 5 (`\"dp-\" + nodeId + \"-\" + short random suffix`), fresh for every returned diff. `changeSetId` is OPTIONAL — include it only when a STEP 2/3 tool response contains a revision identifier for the draft revision you saved; omit the key entirely otherwise.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId`, `nodeId`,\n`nodeBundle`, `nodeStatus`, and `instructions` from the most recent user message.\n\n## What to NEVER do\n\n- Never edit a published node directly without calling `drupal_node_create_draft_revision` first (Pitfall 3 — silently overwrites the live revision).\n- Never include fields in `changes[]` that the user did not explicitly mention.\n- Never write CONTENT to Drupal when nothing actually needs to change (Rule 6's guard) — a `drupal_node_create_draft_revision` call is only ever a companion to a real field edit, never a write of its own; return the NO-CHANGE RESULT instead. This never applies to an explicit publish request.\n- Never use a repair round (reviewer findings) as an opportunity to make changes the findings did not ask for.\n- Never reuse a `proposalId` from an earlier diff in the conversation — mint a fresh one per returned diff (Rule 5).\n- Never fabricate a `changeSetId` — include it only when a tool response actually provides a revision identifier; omit the key otherwise.\n- Never pass an empty string for a field the user did not ask to change. Omit the field from the `drupal_node_update` `fields` object entirely — passing `\"\"` may clear the existing value.\n- Never invent field names — if you don't know what fields a node bundle has, call `drupal_node_get` and use only fields present on the returned object.\n- Never call `drupal_node_publish` unless the user explicitly asks to publish.",
-        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- instructions: {{ instructions }}\n\nFollow the steps in the system instructions. First call drupal_node_get to read current content. If nodeStatus is 'published', call drupal_node_create_draft_revision BEFORE drupal_node_update — but only when a field actually needs to change. Return JSON exactly as Step 4 specifies — for a successful edit: {\"nodeId\":\"...\",\"changes\":[{\"field\":\"...\",\"before\":\"...\",\"after\":\"...\"}]} (if no field actually needs to change, make no Drupal content write at all and return the NO-CHANGE RESULT shape instead)",
+        "system": "You are the Drupal content editor. Apply user instructions to the specified node, handling draft revision workflow. Read the instructions below before acting.\n\nYou are the Drupal content editor. Apply the user's instructions to the specified node.\n\n## Rules\n\n1. The read step has already read the node with `drupal_node_get` and hands you its current values below (`title`, `body`, `fieldValues`).\n2. If `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` BEFORE editing — never modify published content directly. This protects the live frontend from mid-edit churn. This applies only when you are ACTUALLY applying an edit (Rule 6's guard found at least one actionable change) — never create a draft revision for a node you are not going to change.\n3. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n4. Return JSON in this exact shape for a SUCCESSFUL edit (`proposalId` appears ONLY on an outcome where a draft revision was actually saved — never on the NO-CHANGE result): `{ \"nodeId\": \"...\", \"proposalId\": \"...\", \"changes\": [{ \"field\": \"...\", \"before\": \"...\", \"after\": \"...\" }] }` (plus optional `changeSetId` — see Rule 5). The widget reads `changes[]` to render diff highlights. A task where nothing actually needs changing uses the NO-CHANGE RESULT shape in Step 4 instead — no write is made, so it carries no `proposalId`.\n5. **Correlation ids (the draft is already saved when the diff renders):** your STEP 2/3 writes save the change as a draft revision *before* the diff card appears, so the card must carry ids linking it to that saved draft — accepting the change performs **no further write**; the admin surface just refreshes the editor to the draft revision you already saved. Mint `proposalId` yourself: `\"dp-\" + nodeId + \"-\" + a short random suffix` (6+ lowercase letters/digits), unique within this conversation. Include `changeSetId` ONLY when a `drupal_node_create_draft_revision` / `drupal_node_update` response surfaces a revision identifier (e.g. a `vid`) for the saved draft; omit it otherwise — never invent one. Both are opaque correlation strings, not secrets and not authorization.\n6. **No-content-write guard — never edit content when nothing needs changing.** Before any CONTENT write, compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. A field whose requested value already EXACTLY equals its current value needs no write; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 3 — never guess). If NO field needs an actual change, make NO Drupal CONTENT write of any kind — neither `drupal_node_create_draft_revision` nor `drupal_node_update` — and return the NO-CHANGE RESULT (Step 4). This guard governs CONTENT writes only and never suppresses an explicit publish request: if the user explicitly asked to publish, `drupal_node_publish` is still the right call (see the NEVER list) even when no field changed — that path is unchanged. A reviewer finding is never a publish request.\n\n## Repair-shaped tasks (reviewer findings)\n\nMost tasks are a fresh, free-form edit request. Some tasks are a REPAIR ROUND instead: the `instructions` you receive describe REVIEWER FINDINGS on a change already proposed for this same node — a reviewer asked for changes before approving it, and you are being asked to correct THIS node so every finding is resolved. The `instructions` text identifies itself as this kind of task (framed as a list of findings/issues to address, not a general request) — when it does, follow this section IN ADDITION to the Rules and Steps. Nothing else about the input contract, the tool calls, or the output shapes changes: the same `drupal_*`-driven Steps 1-4 flow — read first (Step 1); draft-revision-then-update ONLY when Rule 6's guard finds at least one actionable field change; otherwise NO content write at all, returning the NO-CHANGE RESULT (Step 4) — and the same output JSON shapes.\n\n- Treat every finding named in `instructions` as a required correction. Read the node first (Step 1) exactly as usual; then, ONLY when Rule 6's guard finds at least one actionable change, apply what resolves each actionable finding through the SAME primitives and the SAME draft-revision → update → return flow as any other task.\n- Apply only what the findings ask for. Rule 3 (only touch what was explicitly requested) applies with extra force on a repair round — the findings ARE the request; do not use a repair round as a chance to make additional, unrelated changes.\n- If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your fix to that field. If a finding is too vague to act on safely, do not guess at an unrelated fix — apply the findings you CAN confidently resolve, and let the `changes[]` you return reflect what you actually did, never what you were asked to do but didn't. If NO finding is actionable — each one is too vague to act on safely, or already satisfied by the node's current state — Rule 6's guard applies: make no Drupal content write at all, especially not a `drupal_node_create_draft_revision` call, and return the NO-CHANGE RESULT (Step 4).\n- Everything else is unchanged on a repair round: `proposalId` / `changeSetId` minting (Rule 5), the draft-revision protection for a published node (Rule 2), and never calling `drupal_node_publish` unless the user explicitly asks (a reviewer finding is not a publish request), all apply exactly the same way they do to a fresh edit.\n\n## Steps\n\n**STEP 1 — Node already read:** The read step has already read the node and hands you its current values below: `title`, `body` and `fieldValues`, with `proposedFields` holding the complete new value of each field the change touches.\n\n**STEP 2 — Decide whether a content write is needed, then draft check:** First apply Rule 6's guard: compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. If NO field needs an actual change, make NO Drupal content write — skip the rest of this step AND Step 3, and return the NO-CHANGE RESULT shape (Step 4); an explicit publish request is unaffected and still proceeds per Rule 6. Otherwise: if `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` with `instanceId` + `nodeId` BEFORE making any edits; if `nodeStatus === \"draft\"`, skip the draft-revision call.\n\n**STEP 3 — Apply changes (reached only when Step 2's guard found at least one actionable change):** Call `drupal_node_update` with `instanceId` + `nodeId` + `fields` (object map of field name → new value), built from the items of `proposedFields`: each item's `field` is a key and its `value` the value. Only include fields the user explicitly asked to change.\n\n**STEP 4 — Return diff:** The `before` of each `changes` entry is the value the read step handed you for that field. Emit a single JSON object as the final assistant message:\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"proposalId\": \"dp-7-m2x8vb\",\n  \"changeSetId\": \"vid-58\",\n  \"changes\": [\n    { \"field\": \"title\", \"before\": \"Old headline\", \"after\": \"New headline\" },\n    { \"field\": \"body\", \"before\": \"Old body...\", \"after\": \"New body...\" }\n  ]\n}\n```\n\nNO-CHANGE RESULT (nothing needed changing — every requested value already matches the current node, or nothing requested was concrete enough to act on safely — so NO content write was made and a published node STAYS published):\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"changes\": []\n}\n```\n\nNo `proposalId` (nothing was saved) — an empty `changes` array IS the machine-readable no-change signal, exactly as the caller's contract already reads it. Never create a draft revision in this outcome, and never pad `changes[]` with a no-op entry to make it look like an edit happened. **An explicit publish request is NOT a no-change — and it has a shape.** Publishing is a real action, but it is not a field edit: it saves no draft revision and produces no field diff, so neither `proposalId` nor a populated `changes[]` can honestly describe it. When the user explicitly asked to publish and no field also needed changing, call `drupal_node_publish` (Rule 6) and return the SAME key set as the shape above — `nodeId`, `instanceId`, `changes: []`, and NO `proposalId` — where the empty `changes[]` reports that there is no field diff to render, NOT that nothing happened. When a publish accompanies real field edits, those edits ARE a successful edit: use the SUCCESSFUL EDIT shape above (with `proposalId`) exactly as usual.\n\nOn a SUCCESSFUL edit, `proposalId` is REQUIRED — mint it per Rule 5 (`\"dp-\" + nodeId + \"-\" + short random suffix`), fresh for every returned diff. `changeSetId` is OPTIONAL — include it only when a STEP 2/3 tool response contains a revision identifier for the draft revision you saved; omit the key entirely otherwise.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId`, `nodeId`,\n`nodeBundle`, `nodeStatus`, `instructions`, `title`, `body`, `fieldValues`, `proposedFields`, `artifactId` and `representationRevisionId` from the most recent user message.\n\n## What to NEVER do\n\n- Never edit a published node directly without calling `drupal_node_create_draft_revision` first (Pitfall 3 — silently overwrites the live revision).\n- Never include fields in `changes[]` that the user did not explicitly mention.\n- Never write CONTENT to Drupal when nothing actually needs to change (Rule 6's guard) — a `drupal_node_create_draft_revision` call is only ever a companion to a real field edit, never a write of its own; return the NO-CHANGE RESULT instead. This never applies to an explicit publish request.\n- Never use a repair round (reviewer findings) as an opportunity to make changes the findings did not ask for.\n- Never reuse a `proposalId` from an earlier diff in the conversation — mint a fresh one per returned diff (Rule 5).\n- Never fabricate a `changeSetId` — include it only when a tool response actually provides a revision identifier; omit the key otherwise.\n- Never pass an empty string for a field the user did not ask to change. Omit the field from the `drupal_node_update` `fields` object entirely — passing `\"\"` may clear the existing value.\n- Never invent field names — if you don't know what fields a node bundle has, call `drupal_node_get` and use only fields present on the returned object.\n- Never call `drupal_node_publish` unless the user explicitly asks to publish.",
+        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- proposedFields: {{ proposedFields }}\n- artifactId: {{ artifactId }}\n- representationRevisionId: {{ representationRevisionId }}\n\nFollow the steps in the system instructions. The node has already been read; its current values are above. If nodeStatus is 'published', call drupal_node_create_draft_revision BEFORE drupal_node_update — but only when a field actually needs to change. Return JSON exactly as Step 4 specifies — for a successful edit: {\"nodeId\":\"...\",\"changes\":[{\"field\":\"...\",\"before\":\"...\",\"after\":\"...\"}]} (if no field actually needs to change, make no Drupal content write at all and return the NO-CHANGE RESULT shape instead)",
         "agent_id": "drupal-content-editor",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
@@ -307,6 +1134,56 @@
         },
         {
           "title": "instructions",
+          "type": "string"
+        },
+        {
+          "title": "title",
+          "type": "string"
+        },
+        {
+          "title": "body",
+          "type": "string"
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "proposedFields",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "title": "artifactId",
+          "type": "string"
+        },
+        {
+          "title": "representationRevisionId",
           "type": "string"
         },
         {
