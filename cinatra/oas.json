@@ -61,6 +61,10 @@
           }
         }
       }
+    },
+    {
+      "title": "reason",
+      "type": "string"
     }
   ],
   "start_node": {
@@ -420,9 +424,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_load_node_nodeBundle",
+      "name": "read_node_to_load_node_nodeBundle",
       "source_node": {
-        "$component_ref": "start"
+        "$component_ref": "read_node"
       },
       "source_output": "nodeBundle",
       "destination_node": {
@@ -432,9 +436,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_load_node_nodeStatus",
+      "name": "read_node_to_load_node_nodeStatus",
       "source_node": {
-        "$component_ref": "start"
+        "$component_ref": "read_node"
       },
       "source_output": "nodeStatus",
       "destination_node": {
@@ -585,6 +589,42 @@
         "$component_ref": "emit_output"
       },
       "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_load_node_error",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "load_node"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_emit_output_reason",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "load_node_to_end_reason",
+      "source_node": {
+        "$component_ref": "load_node"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "reason"
     }
   ],
   "$referenced_components": {
@@ -594,7 +634,9 @@
       "name": "Inputs",
       "metadata": {
         "cinatra": {
-          "hidden": ["cinatra_run_id"]
+          "hidden": [
+            "cinatra_run_id"
+          ]
         }
       },
       "inputs": [
@@ -632,7 +674,7 @@
       "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content reader. Read the specified node and hand its current values to the next step. You change nothing on the site.\n\n## Rules\n\n1. Call `drupal_node_get` first to read current content before any changes.\n\n## Steps\n\n**STEP 1 — Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.\n\n**STEP 2 — Compose the public address:** Call `drupal_instances_list` and take the item whose `id` equals `instanceId`. Take its `siteUrl`, remove every trailing slash, then append `/node/` and the node id. When no item matches, or the site address does not start with `https://`, the address is the empty string.\n\n## What each output field holds\n\n- `title` — the node's title as the read answers it.\n- `body` — the raw source markup of `body` exactly as the read answers it; the empty string when the read carries no `body`.\n- `fieldValues` — one item per field of the read whose name starts with `field_` and whose value is text: `field` is the field name and `value` its value as text.\n- `address` — the node's public address from STEP 2.\n- `error` — `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId` and `nodeId` from the most recent user message.\n\n## What to NEVER do\n\n- Never write to the site: this step only reads.\n- Never invent a field or a value: hand over only what the read answered.",
+        "system": "You are the Drupal content reader. Read the specified node and hand its current values to the next step. You change nothing on the site.\n\n## Rules\n\n1. Call `drupal_node_get` first to read current content before any changes.\n\n## Steps\n\n**STEP 1 — Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.\n\n**STEP 2 — Compose the public address:** Call `drupal_instances_list` and take the item whose `id` equals `instanceId`. Take its `siteUrl`, remove every trailing slash, then append `/node/` and the node id. When no item matches, or the site address does not start with `https://`, the address is the empty string.\n\n## What each output field holds\n\n- `title` — the node's title as the read answers it.\n- `body` — the raw source markup of `body` exactly as the read answers it; the empty string when the read carries no `body`.\n- `fieldValues` — one item per field of the read whose name starts with `field_` and whose value is text: `field` is the field name and `value` its value as text.\n- `address` — the node's public address from STEP 2.\n- `nodeStatus` — from this actual read only: `published` for status true, 1, \"1\" or \"published\"; `draft` for false, 0, \"0\", \"unpublished\" or \"draft\"; `unknown` otherwise (including any failed read). Never copy a caller hint.\n- `nodeBundle` — the actual read's `bundle` string, or the empty string when absent or the read failed.\n- `error` — `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId` and `nodeId` from the most recent user message.\n\n## What to NEVER do\n\n- Never write to the site: this step only reads.\n- Never invent a field or a value: hand over only what the read answered.",
         "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n\nFollow the steps in the system instructions: read the node with drupal_node_get, compose its public address from drupal_instances_list, and fill the declared output fields.",
         "agent_id": "drupal-content-editor",
         "agent_run_id": "{{ agent_run_id }}",
@@ -699,6 +741,14 @@
               }
             }
           }
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string"
+        },
+        {
+          "title": "nodeBundle",
+          "type": "string"
         }
       ],
       "metadata": {
@@ -1106,8 +1156,8 @@
       "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content editor. Apply user instructions to the specified node, handling draft revision workflow. Read the instructions below before acting.\n\nYou are the Drupal content editor. Apply the user's instructions to the specified node.\n\n## Rules\n\n1. The read step has already read the node with `drupal_node_get` and hands you its current values below (`title`, `body`, `fieldValues`).\n2. If `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` BEFORE editing — never modify published content directly. This protects the live frontend from mid-edit churn. This applies only when you are ACTUALLY applying an edit (Rule 6's guard found at least one actionable change) — never create a draft revision for a node you are not going to change.\n3. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n4. Return JSON in this exact shape for a SUCCESSFUL edit (`proposalId` appears ONLY on an outcome where a draft revision was actually saved — never on the NO-CHANGE result): `{ \"nodeId\": \"...\", \"proposalId\": \"...\", \"changes\": [{ \"field\": \"...\", \"before\": \"...\", \"after\": \"...\" }] }` (plus optional `changeSetId` — see Rule 5). The widget reads `changes[]` to render diff highlights. A task where nothing actually needs changing uses the NO-CHANGE RESULT shape in Step 4 instead — no write is made, so it carries no `proposalId`.\n5. **Correlation ids (the draft is already saved when the diff renders):** your STEP 2/3 writes save the change as a draft revision *before* the diff card appears, so the card must carry ids linking it to that saved draft — accepting the change performs **no further write**; the admin surface just refreshes the editor to the draft revision you already saved. Mint `proposalId` yourself: `\"dp-\" + nodeId + \"-\" + a short random suffix` (6+ lowercase letters/digits), unique within this conversation. Include `changeSetId` ONLY when a `drupal_node_create_draft_revision` / `drupal_node_update` response surfaces a revision identifier (e.g. a `vid`) for the saved draft; omit it otherwise — never invent one. Both are opaque correlation strings, not secrets and not authorization.\n6. **No-content-write guard — never edit content when nothing needs changing.** Before any CONTENT write, compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. A field whose requested value already EXACTLY equals its current value needs no write; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 3 — never guess). If NO field needs an actual change, make NO Drupal CONTENT write of any kind — neither `drupal_node_create_draft_revision` nor `drupal_node_update` — and return the NO-CHANGE RESULT (Step 4). This guard governs CONTENT writes only and never suppresses an explicit publish request: if the user explicitly asked to publish, `drupal_node_publish` is still the right call (see the NEVER list) even when no field changed — that path is unchanged. A reviewer finding is never a publish request.\n\n## Repair-shaped tasks (reviewer findings)\n\nMost tasks are a fresh, free-form edit request. Some tasks are a REPAIR ROUND instead: the `instructions` you receive describe REVIEWER FINDINGS on a change already proposed for this same node — a reviewer asked for changes before approving it, and you are being asked to correct THIS node so every finding is resolved. The `instructions` text identifies itself as this kind of task (framed as a list of findings/issues to address, not a general request) — when it does, follow this section IN ADDITION to the Rules and Steps. Nothing else about the input contract, the tool calls, or the output shapes changes: the same `drupal_*`-driven Steps 1-4 flow — read first (Step 1); draft-revision-then-update ONLY when Rule 6's guard finds at least one actionable field change; otherwise NO content write at all, returning the NO-CHANGE RESULT (Step 4) — and the same output JSON shapes.\n\n- Treat every finding named in `instructions` as a required correction. Read the node first (Step 1) exactly as usual; then, ONLY when Rule 6's guard finds at least one actionable change, apply what resolves each actionable finding through the SAME primitives and the SAME draft-revision → update → return flow as any other task.\n- Apply only what the findings ask for. Rule 3 (only touch what was explicitly requested) applies with extra force on a repair round — the findings ARE the request; do not use a repair round as a chance to make additional, unrelated changes.\n- If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your fix to that field. If a finding is too vague to act on safely, do not guess at an unrelated fix — apply the findings you CAN confidently resolve, and let the `changes[]` you return reflect what you actually did, never what you were asked to do but didn't. If NO finding is actionable — each one is too vague to act on safely, or already satisfied by the node's current state — Rule 6's guard applies: make no Drupal content write at all, especially not a `drupal_node_create_draft_revision` call, and return the NO-CHANGE RESULT (Step 4).\n- Everything else is unchanged on a repair round: `proposalId` / `changeSetId` minting (Rule 5), the draft-revision protection for a published node (Rule 2), and never calling `drupal_node_publish` unless the user explicitly asks (a reviewer finding is not a publish request), all apply exactly the same way they do to a fresh edit.\n\n## Steps\n\n**STEP 1 — Node already read:** The read step has already read the node and hands you its current values below: `title`, `body` and `fieldValues`, with `proposedFields` holding the complete new value of each field the change touches.\n\n**STEP 2 — Decide whether a content write is needed, then draft check:** First apply Rule 6's guard: compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values you read in Step 1. If NO field needs an actual change, make NO Drupal content write — skip the rest of this step AND Step 3, and return the NO-CHANGE RESULT shape (Step 4); an explicit publish request is unaffected and still proceeds per Rule 6. Otherwise: if `nodeStatus === \"published\"`, call `drupal_node_create_draft_revision` with `instanceId` + `nodeId` BEFORE making any edits; if `nodeStatus === \"draft\"`, skip the draft-revision call.\n\n**STEP 3 — Apply changes (reached only when Step 2's guard found at least one actionable change):** Call `drupal_node_update` with `instanceId` + `nodeId` + `fields` (object map of field name → new value), built from the items of `proposedFields`: each item's `field` is a key and its `value` the value. Only include fields the user explicitly asked to change.\n\n**STEP 4 — Return diff:** The `before` of each `changes` entry is the value the read step handed you for that field. Emit a single JSON object as the final assistant message:\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"proposalId\": \"dp-7-m2x8vb\",\n  \"changeSetId\": \"vid-58\",\n  \"changes\": [\n    { \"field\": \"title\", \"before\": \"Old headline\", \"after\": \"New headline\" },\n    { \"field\": \"body\", \"before\": \"Old body...\", \"after\": \"New body...\" }\n  ]\n}\n```\n\nNO-CHANGE RESULT (nothing needed changing — every requested value already matches the current node, or nothing requested was concrete enough to act on safely — so NO content write was made and a published node STAYS published):\n\n```json\n{\n  \"nodeId\": \"...\",\n  \"instanceId\": \"...\",\n  \"changes\": []\n}\n```\n\nNo `proposalId` (nothing was saved) — an empty `changes` array IS the machine-readable no-change signal, exactly as the caller's contract already reads it. Never create a draft revision in this outcome, and never pad `changes[]` with a no-op entry to make it look like an edit happened. **An explicit publish request is NOT a no-change — and it has a shape.** Publishing is a real action, but it is not a field edit: it saves no draft revision and produces no field diff, so neither `proposalId` nor a populated `changes[]` can honestly describe it. When the user explicitly asked to publish and no field also needed changing, call `drupal_node_publish` (Rule 6) and return the SAME key set as the shape above — `nodeId`, `instanceId`, `changes: []`, and NO `proposalId` — where the empty `changes[]` reports that there is no field diff to render, NOT that nothing happened. When a publish accompanies real field edits, those edits ARE a successful edit: use the SUCCESSFUL EDIT shape above (with `proposalId`) exactly as usual.\n\nOn a SUCCESSFUL edit, `proposalId` is REQUIRED — mint it per Rule 5 (`\"dp-\" + nodeId + \"-\" + short random suffix`), fresh for every returned diff. `changeSetId` is OPTIONAL — include it only when a STEP 2/3 tool response contains a revision identifier for the draft revision you saved; omit the key entirely otherwise.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId`, `nodeId`,\n`nodeBundle`, `nodeStatus`, `instructions`, `title`, `body`, `fieldValues`, `proposedFields`, `artifactId` and `representationRevisionId` from the most recent user message.\n\n## What to NEVER do\n\n- Never edit a published node directly without calling `drupal_node_create_draft_revision` first (Pitfall 3 — silently overwrites the live revision).\n- Never include fields in `changes[]` that the user did not explicitly mention.\n- Never write CONTENT to Drupal when nothing actually needs to change (Rule 6's guard) — a `drupal_node_create_draft_revision` call is only ever a companion to a real field edit, never a write of its own; return the NO-CHANGE RESULT instead. This never applies to an explicit publish request.\n- Never use a repair round (reviewer findings) as an opportunity to make changes the findings did not ask for.\n- Never reuse a `proposalId` from an earlier diff in the conversation — mint a fresh one per returned diff (Rule 5).\n- Never fabricate a `changeSetId` — include it only when a tool response actually provides a revision identifier; omit the key otherwise.\n- Never pass an empty string for a field the user did not ask to change. Omit the field from the `drupal_node_update` `fields` object entirely — passing `\"\"` may clear the existing value.\n- Never invent field names — if you don't know what fields a node bundle has, call `drupal_node_get` and use only fields present on the returned object.\n- Never call `drupal_node_publish` unless the user explicitly asks to publish.",
-        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- proposedFields: {{ proposedFields }}\n- artifactId: {{ artifactId }}\n- representationRevisionId: {{ representationRevisionId }}\n\nFollow the steps in the system instructions. The node has already been read; its current values are above. If nodeStatus is 'published', call drupal_node_create_draft_revision BEFORE drupal_node_update — but only when a field actually needs to change. Return JSON exactly as Step 4 specifies — for a successful edit: {\"nodeId\":\"...\",\"changes\":[{\"field\":\"...\",\"before\":\"...\",\"after\":\"...\"}]} (if no field actually needs to change, make no Drupal content write at all and return the NO-CHANGE RESULT shape instead)",
+        "system": "You are the Drupal content editor. Apply only the user's requested fields to the specified node after the page snapshot's human review. The read step supplies title, body, fieldValues, nodeStatus, nodeBundle and error from drupal_node_get. Caller status and bundle hints are not authority.\n\n## Rules\n\n1. Never write when error.code is non-empty or nodeStatus is unknown. Return a REFUSAL RESULT with the actual reason. Do not guess a status, bundle, field or value.\n2. Compare requested values against the read values before any content write. If no concrete field differs, make NO content write (including no draft creation) and return the NO-CHANGE RESULT. A reviewer finding is never a publish request. An explicit user publish request remains allowed through drupal_node_publish, even without a field edit.\n3. Apply only the fields explicitly requested; build fields from proposedFields. Never include an empty string for a field that was not requested. The existing review step and connector's CMS review/write-authority gates remain mandatory.\n4. A published node is edited through ONE atomic call to drupal_node_create_draft_revision with instanceId + nodeId + fields. The connector discovers the site's authorized protected non-published/non-default moderation state and saves approved fields on a revision of the SAME node. Never call drupal_node_update after a draft call: the generic update addresses the live default node, not that protected revision. Never create a new node as a fallback.\n5. Only a node actually read as draft can use drupal_node_update with instanceId + nodeId + fields. A caller hint cannot make a published node writable. If a fresh connector read disagrees, honor its refusal.\n6. Without a moderation workflow, an authorized protected transition, or exact draft-revision MCP read capability, the connector refuses BEFORE any Drupal content write. State its actual reason plainly. Content Moderation and supported revision-reading tools can make the protected edit possible; a separate new page is allowed only by the person's independent explicit choice. Never fall back to a live edit, a stray new node, direct REST, or unsupported revision selector arguments.\n7. A tool error, pending_review, rejected review, or unavailable/failed readback is not a successful saved edit. Stop, preserve the actual reason in a REFUSAL RESULT, and never manufacture changes, a saved revision identifier, proposalId or success. Only an actual successful verified write permits a diff. Its before-values come from the read step; after-values must match independently read saved fields, not merely echo the requested values.\n8. On a successful edit mint a fresh proposalId (\"dp-\" + nodeId + \"-\" + 6+ lowercase letters/digits). Include changeSetId only from the tool's actual revision identifier (revision_id or vid). Never reuse a proposalId from an earlier diff, and never invent a revision identifier. These are opaque correlation ids, not authority.\n\n## Repair-shaped tasks\n\nReviewer findings are the request. Apply only the named fields or regions. A vague or already satisfied finding needs no content write. Do not broaden a repair into unrelated changes. The same comparison guard, human review, protected atomic draft path and refusal rules apply. Never publish because a reviewer finding asks for a correction; drupal_node_publish needs the user's explicit publish request.\n\n## Steps\n\nSTEP 1 — The page has already been read and the proposed page snapshot filed and reviewed. Use only the supplied read values and reviewed proposedFields; honor error and unknown status.\nSTEP 2 — Compare fields. If none needs changing, make no content write. Otherwise, for published call drupal_node_create_draft_revision once with instanceId, nodeId and fields; for draft call drupal_node_update once with those same coordinates. No draft-then-update sequence.\nSTEP 3 — Inspect the actual result. Held, refused, failed, or unverified writes return a reason and no diff. Do not report a pending review as success. The supported published route requires independent exact-revision MCP readback before success. Publishing is never automatic: call drupal_node_publish only on an explicit user publish request and only if preceding required operations succeeded.\nSTEP 4 — Return the declared JSON nodeId, changes and reason. The reason is empty on success and on an ordinary no-change result. On a successful field edit, include only actual changed fields with their read before-values and independently confirmed after-values; retain the correlation rules above.\n\nSUCCESSFUL EDIT: {\"nodeId\":\"7\",\"changes\":[{\"field\":\"title\",\"before\":\"Old\",\"after\":\"New\"}],\"reason\":\"\"}\nNO-CHANGE RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"\"}\nREFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The site cannot safely save and read a protected draft revision of this published page. No content was written.\"}\n\nNever pad changes with a no-op, and never attach a proposalId or changeSetId to a refusal or no-change result. An explicit publish-only request yields no field diff; retain changes:[] and report a failure in reason if publication was refused. Never hide a refusal as an ordinary no-change result.\n",
+        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- proposedFields: {{ proposedFields }}\n- artifactId: {{ artifactId }}\n- representationRevisionId: {{ representationRevisionId }}\n- error: {{ error }}\n\nFollow the atomic edit and refusal rules. Status and bundle above come from the actual node read. Published fields use one drupal_node_create_draft_revision call with fields; never a following generic update. Return nodeId, changes and reason as declared.",
         "agent_id": "drupal-content-editor",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
@@ -1189,6 +1239,21 @@
         {
           "title": "agent_run_id",
           "type": "string"
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
         }
       ],
       "outputs": [
@@ -1215,6 +1280,10 @@
               }
             }
           }
+        },
+        {
+          "title": "reason",
+          "type": "string"
         }
       ],
       "metadata": {
@@ -1253,9 +1322,13 @@
               }
             }
           }
+        },
+        {
+          "title": "reason",
+          "type": "string"
         }
       ],
-      "message": "{# {{ changes }} #}{\"nodeId\":\"{{ nodeId }}\",\"changes\":{{ changes | tojson }}}"
+      "message": "{# {{ changes }} #}{\"nodeId\":{{ nodeId | tojson }},\"changes\":{{ changes | tojson }},\"reason\":{{ reason | tojson }}}"
     },
     "end": {
       "component_type": "EndNode",
@@ -1285,6 +1358,10 @@
               }
             }
           }
+        },
+        {
+          "title": "reason",
+          "type": "string"
         }
       ]
     }

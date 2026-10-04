@@ -10,7 +10,7 @@ There is no producer-side code in this repo for repair, and none is needed: unde
 
 **This declaration has no effect by itself.** It only starts doing anything once cinatra's pin for this package advances to a version carrying it — until then `repairCapable` is a harmless, unused label on the manifest. The `changes_requested` route resolves it from `agent_templates.lifecycle_config`, which is compiled from this block at install time.
 
-**Repair rounds never widen what this agent writes.** A repair round is subject to the same rules as any other edit: draft-revision-before-editing for a published node, only the fields the findings name, and never `drupal_node_publish` unless a human explicitly asked. It also carries a no-content-write guard — when nothing named in the findings is actionable, or every requested value already matches the node, the agent makes NO Drupal content write at all (not even a draft revision) and returns the NO-CHANGE RESULT shape (empty `changes`, no `proposalId`). That guard is scoped to CONTENT writes: an explicit user request to publish is still honoured exactly as before (a reviewer finding is never a publish request).
+**Repair rounds never widen what this agent writes.** A repair round is subject to the same rules as any other edit: one atomic protected same-node draft edit for a published node, only the fields the findings name, and never `drupal_node_publish` unless a human explicitly asked. It also carries a no-content-write guard — when nothing named in the findings is actionable, or every requested value already matches the node, the agent makes NO Drupal content write at all (not even a draft revision) and returns the NO-CHANGE RESULT shape (empty `changes`, no `proposalId`). That guard is scoped to CONTENT writes: an explicit user request to publish is still honoured exactly as before (a reviewer finding is never a publish request).
 
 ## Agent role
 
@@ -30,7 +30,7 @@ The caller (`chat/route.ts`) sends a single `user` message whose text is a JSON-
 }
 ```
 
-All fields are strings. `nodeStatus` is `"published"` or `"draft"`. The agent reads these from the most recent user message in the conversation history — they are not injected as named DFE inputs (per WayFlow's `A2AAgent.input_descriptors = []` convention).
+All fields are strings. Caller `nodeStatus` and `nodeBundle` are hints only: the actual node read supplies the authoritative status/bundle to the write step. The agent reads these from the most recent user message in the conversation history — they are not injected as named DFE inputs (per WayFlow's `A2AAgent.input_descriptors = []` convention).
 
 ## A2A output contract
 
@@ -39,7 +39,7 @@ The agent emits a single final assistant message containing a JSON object:
 ```json
 {
   "nodeId": "42",
-  "instanceId": "site-1",
+  "reason": "",
   "changes": [
     { "field": "title", "before": "Old headline", "after": "New headline" },
     { "field": "body",  "before": "Old paragraph...", "after": "Fixed paragraph..." }
@@ -47,33 +47,41 @@ The agent emits a single final assistant message containing a JSON object:
 }
 ```
 
-The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts`) — WayFlow returns the conversation history in the `task` object; `task.artifacts` is not implemented. The caller JSON-parses the final assistant message text to extract `nodeId` and `changes`.
+The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts`) — WayFlow returns the conversation history in the `task` object; `task.artifacts` is not implemented. The caller JSON-parses the final assistant message text to extract `nodeId`, `changes` and the declared `reason`. A refusal carries no diff and names why no safe write occurred; ordinary success/no-change has an empty reason.
 
 ## Draft revision workflow (critical)
 
-Published nodes must NEVER be edited directly. The agent prompt enforces:
+Published nodes must never be edited directly. The actual read determines the
+status and bundle; caller hints cannot authorize a live-node update. The filed
+page snapshot and existing human review still precede the write step.
 
-1. `drupal_node_get` → read current content
-2. If `nodeStatus === "published"` → `drupal_node_create_draft_revision` first
-3. `drupal_node_update` → apply changes to the draft
-4. Return diff JSON
+For a real requested change to a published node, call
+`drupal_node_create_draft_revision(instanceId,nodeId,fields)` once to request an
+atomic edit of the same node. Never follow it with generic `drupal_node_update`,
+which addresses the default node. This version refuses before any content write
+until the backend exposes exact-revision MCP readback. Missing moderation,
+permission or a safe non-default state likewise refuses. The run returns the
+plain reason, no diff and no invented saved identifiers; it never substitutes a
+new page or live edit. A separate new page is the person's independent choice.
 
-Bypassing step 2 silently overwrites the live frontend revision without creating a content history entry. The `chat/route.ts` passes `nodeStatus` explicitly so the agent can branch correctly without an extra read.
+Unpublished nodes may use generic update after its actual-status guard. Repairs
+keep the same field scope/no-change guard; publication still requires an explicit
+user request. No direct REST or invented MCP revision-selector arguments.
 
 ## MCP primitives used
 
 | Primitive | Purpose |
 |---|---|
 | `drupal_node_get` | Read current node content (uses search proxy — see connector AGENTS.md) |
-| `drupal_node_create_draft_revision` | Demote published node to draft before editing |
-| `drupal_node_update` | Apply field changes (`fields` map) |
+| `drupal_node_create_draft_revision` | Request a protected SAME-node atomic edit; currently refuses until exact-revision MCP reader exists |
+| `drupal_node_update` | Apply unpublished-node field changes after actual-status validation |
 | `drupal_node_publish` | Publish only if user explicitly requests it |
 
 These are registered by `@cinatra-ai/drupal-connector` via `src/lib/mcp-server.ts`. The agent accesses them through Cinatra's MCP server (not directly).
 
 ## Timeout
 
-The A2A client in `chat/route.ts` uses `timeoutMs: 600_000` (10 minutes). This covers a full read → draft → update cycle including any LLM latency. Do not reduce this timeout without verifying that all Drupal MCP operations complete well within the new limit.
+The A2A client in `chat/route.ts` uses `timeoutMs: 600_000` (10 minutes). This covers a full read → protected atomic edit cycle including any LLM latency. Do not reduce this timeout without verifying that all Drupal MCP operations complete well within the new limit.
 
 ## Local dev URL
 
