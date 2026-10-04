@@ -263,7 +263,7 @@ test("S2 the read step reads the node and composes its public address", () => {
   assertEdge("read_node", "nodeId", "start", "nodeId");
   assertEdge("read_node", "agent_run_id", "start", "cinatra_run_id");
 
-  assert.deepEqual(titles(node.outputs), ["title", "body", "fieldValues", "address", "error"]);
+  assert.deepEqual(titles(node.outputs), ["title", "body", "fieldValues", "address", "error", "nodeStatus", "nodeBundle"]);
   assert.equal(declared(node.outputs, "title").type, "string");
   assert.equal(declared(node.outputs, "body").type, "string");
   assert.equal(declared(node.outputs, "address").type, "string");
@@ -281,7 +281,7 @@ test("S3 the compose step answers the proposed fields and the page form, with on
   assert.equal(node.metadata.cinatra.riskClass, "read_only");
 
   assertEdge("compose_change", "instructions", "start", "instructions");
-  for (const output of titles(part("read_node").outputs)) {
+  for (const output of ["title", "body", "fieldValues", "address", "error"]) {
     assertEdge("compose_change", output, "read_node", output);
   }
 
@@ -427,7 +427,7 @@ test("S6 the write step follows the review", () => {
   for (const tool of WRITE_TOOLS) {
     assert.ok(node.data.system.includes(tool), `the write step names ${tool}`);
   }
-  assert.deepEqual(titles(node.outputs), ["nodeId", "changes"]);
+  assert.deepEqual(titles(node.outputs), ["nodeId", "changes", "reason"]);
 });
 
 test("S7 the declared module files the set it is handed and nothing else", async () => {
@@ -459,10 +459,10 @@ test("S7 the declared module files the set it is handed and nothing else", async
   assert.equal(filed.length, 1, "a refused op files nothing");
 });
 
-test("S8 the end node keeps today's two outputs and binds nothing: the snapshot is filed during the run", () => {
+test("S8 the end node preserves the content outputs with a visible refusal reason and binds nothing: the snapshot is filed during the run", () => {
   const end = part("end");
-  assert.deepEqual(titles(end.outputs), ["nodeId", "changes"]);
-  assert.deepEqual(titles(oas.outputs), ["nodeId", "changes"]);
+  assert.deepEqual(titles(end.outputs), ["nodeId", "changes", "reason"]);
+  assert.deepEqual(titles(oas.outputs), ["nodeId", "changes", "reason"]);
   assert.deepEqual(
     (end.outputs ?? []).filter((o) => o.cinatra?.artifact).map((o) => o.title),
     [],
