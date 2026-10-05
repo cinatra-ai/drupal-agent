@@ -263,7 +263,8 @@ test("S2 the read step reads the node and composes its public address", () => {
   assertEdge("read_node", "nodeId", "start", "nodeId");
   assertEdge("read_node", "agent_run_id", "start", "cinatra_run_id");
 
-  assert.deepEqual(titles(node.outputs), ["title", "body", "fieldValues", "address", "error", "nodeStatus", "nodeBundle"]);
+  assert.deepEqual(titles(node.outputs), ["title", "body", "fieldValues", "address", "error", "nodeStatus", "nodeBundle", "nodeLanguage"]);
+  assert.equal(declared(node.outputs, "nodeLanguage").type, "string");
   assert.equal(declared(node.outputs, "title").type, "string");
   assert.equal(declared(node.outputs, "body").type, "string");
   assert.equal(declared(node.outputs, "address").type, "string");

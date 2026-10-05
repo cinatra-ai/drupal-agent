@@ -6,13 +6,24 @@ const parts = oas.$referenced_components;
 const edge = (node, input) => oas.data_flow_connections.find((e) => e.destination_node.$component_ref === node && e.destination_input === input);
 const titles = (list) => list.map((x) => x.title);
 test("published status and bundle come from the actual node read, never caller hints", () => {
-  for (const name of ["nodeStatus", "nodeBundle", "error"]) {
+  for (const name of ["nodeStatus", "nodeBundle", "nodeLanguage", "error"]) {
     assert.ok(titles(parts.read_node.outputs).includes(name));
     assert.equal(edge("load_node", name).source_node.$component_ref, "read_node");
     assert.equal(edge("load_node", name).source_output, name);
   }
   assert.match(parts.read_node.data.system, /unknown/);
   assert.match(parts.load_node.data.system, /caller.*hint/i);
+});
+test("the protected published call receives actual language and consumes stored draft fields", () => {
+  assert.ok(titles(parts.load_node.inputs).includes("nodeLanguage"));
+  assert.match(parts.load_node.data.user, /nodeLanguage:\s*\{\{ nodeLanguage \}\}/);
+  assert.match(parts.load_node.data.system, /language.*nodeLanguage/);
+  assert.match(parts.load_node.data.system, /pendingDraft\.fields/);
+  assert.match(parts.load_node.data.system, /pendingDraft\.beforeFields/);
+  assert.match(parts.load_node.data.system, /expectedFields/);
+  assert.match(parts.load_node.data.system, /pendingDraft\.revisionId/);
+  assert.match(parts.load_node.data.system, /after writer dispatch/);
+  assert.match(parts.load_node.data.system, /Never claim.*[Nn]o content.*written/);
 });
 test("the settled atomic-edit contract removes the unsafe draft-then-generic-update sequence", () => {
   const text = parts.load_node.data.system;

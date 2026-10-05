@@ -56,13 +56,19 @@ status and bundle; caller hints cannot authorize a live-node update. The filed
 page snapshot and existing human review still precede the write step.
 
 For a real requested change to a published node, call
-`drupal_node_create_draft_revision(instanceId,nodeId,fields)` once to request an
+`drupal_node_create_draft_revision(instanceId,nodeId,fields,language,expectedFields)` once to request an
 atomic edit of the same node. Never follow it with generic `drupal_node_update`,
-which addresses the default node. This version refuses before any content write
-until the backend exposes exact-revision MCP readback. Missing moderation,
-permission or a safe non-default state likewise refuses. The run returns the
-plain reason, no diff and no invented saved identifiers; it never substitutes a
-new page or live edit. A separate new page is the person's independent choice.
+which addresses the default node. The language comes from the actual read's
+`langcode`, wired as `nodeLanguage`; an absent language cannot authorize a
+published edit. The existing Cinatra module supplies the protected writer and
+exact-revision reader through the site's maintained MCP profile. A successful
+result carries independently stored `pendingDraft.fields` and the actual
+`pendingDraft.revisionId`; before-values use the bound `pendingDraft.beforeFields`
+and after-values use stored item values. `expectedFields` compares requested
+fields to the earlier actual read and refuses a stale edit before writing. Before-write
+refusals return a visible reason and no diff. A failure after writer dispatch
+preserves the possible saved draft and inspection requirement; never claim zero
+writes or retry automatically. No separate-node or live-edit fallback is allowed.
 
 Unpublished nodes may use generic update after its actual-status guard. Repairs
 keep the same field scope/no-change guard; publication still requires an explicit
@@ -73,7 +79,7 @@ user request. No direct REST or invented MCP revision-selector arguments.
 | Primitive | Purpose |
 |---|---|
 | `drupal_node_get` | Read current node content (uses search proxy — see connector AGENTS.md) |
-| `drupal_node_create_draft_revision` | Request a protected SAME-node atomic edit; currently refuses until exact-revision MCP reader exists |
+| `drupal_node_create_draft_revision` | Request a protected SAME-node atomic edit in the exact read language, using existing module tools and independently stored draft readback |
 | `drupal_node_update` | Apply unpublished-node field changes after actual-status validation |
 | `drupal_node_publish` | Publish only if user explicitly requests it |
 
