@@ -1348,7 +1348,7 @@
           "type": "string"
         }
       ],
-      "message": "{# {{ changes }} #}{\"nodeId\":{{ nodeId | tojson }},\"changes\":{{ changes | tojson }},\"reason\":{{ reason | tojson }}}"
+      "message": "{# {{ nodeId }} {{ changes }} {{ reason }} #}{\"nodeId\":{{ nodeId | tojson }},\"changes\":{{ changes | tojson }},\"reason\":{{ reason | tojson }}}"
     },
     "end": {
       "component_type": "EndNode",
