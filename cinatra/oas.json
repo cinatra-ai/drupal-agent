@@ -13,23 +13,30 @@
   "inputs": [
     {
       "title": "instanceId",
-      "type": "string"
+      "type": "string",
+      "description": "Enter the connected Drupal instance ID. The Drupal content-editor relay normally supplies this ID from the current site."
     },
     {
       "title": "nodeId",
-      "type": "string"
+      "type": "string",
+      "description": "Enter the Drupal node ID to edit. The Drupal content-editor relay normally supplies this ID from the open node."
     },
     {
       "title": "nodeBundle",
-      "type": "string"
+      "type": "string",
+      "description": "Optional caller bundle hint. The agent reads the actual bundle from Drupal before editing; a blank hint does not change that decision.",
+      "default": ""
     },
     {
       "title": "nodeStatus",
-      "type": "string"
+      "type": "string",
+      "description": "Optional caller status hint. The agent reads the current status from Drupal before editing; a blank hint does not change that decision.",
+      "default": ""
     },
     {
       "title": "instructions",
-      "type": "string"
+      "type": "string",
+      "description": "Describe the changes to make to this node, naming the text or fields to change and the desired result."
     },
     {
       "title": "cinatra_run_id",
@@ -648,29 +655,41 @@
         "cinatra": {
           "hidden": [
             "cinatra_run_id"
+          ],
+          "required": [
+            "instanceId",
+            "nodeId",
+            "instructions"
           ]
         }
       },
       "inputs": [
         {
           "title": "instanceId",
-          "type": "string"
+          "type": "string",
+          "description": "Enter the connected Drupal instance ID. The Drupal content-editor relay normally supplies this ID from the current site."
         },
         {
           "title": "nodeId",
-          "type": "string"
+          "type": "string",
+          "description": "Enter the Drupal node ID to edit. The Drupal content-editor relay normally supplies this ID from the open node."
         },
         {
           "title": "nodeBundle",
-          "type": "string"
+          "type": "string",
+          "description": "Optional caller bundle hint. The agent reads the actual bundle from Drupal before editing; a blank hint does not change that decision.",
+          "default": ""
         },
         {
           "title": "nodeStatus",
-          "type": "string"
+          "type": "string",
+          "description": "Optional caller status hint. The agent reads the current status from Drupal before editing; a blank hint does not change that decision.",
+          "default": ""
         },
         {
           "title": "instructions",
-          "type": "string"
+          "type": "string",
+          "description": "Describe the changes to make to this node, naming the text or fields to change and the desired result."
         },
         {
           "title": "cinatra_run_id",
