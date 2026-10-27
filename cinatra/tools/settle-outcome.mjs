@@ -14,8 +14,8 @@
  * - `saved` and `no_change` carry an exactly empty reason; any reason means the
  *   write step did not do what the answer says, and stops the run.
  * - A read that failed (any `error.code` other than the exact empty string), a
- *   status other than `published` or `draft`, field values that name a field
- *   twice, an answer that is not exactly one of the three outcomes, or an input
+ *   status other than `published` or `draft`, a proposed field or a read field
+ *   value without a text field name, field values that name a field twice, an answer that is not exactly one of the three outcomes, or an input
  *   this module cannot read as its declared shape, stops the run.
  * - It cannot see the write itself: a `saved` answer with a non-empty diff is
  *   taken on the write step's own report.
@@ -77,6 +77,9 @@ function readText(value) {
   return value;
 }
 
+/** True when a list holds an element that is not an object with a non-empty text `field`. */
+const nameless = (list) => list.some((item) => !isPlainObject(item) || typeof item.field !== "string" || item.field === "");
+
 /** The field's current value as the read answered it, or undefined when the read has none. */
 function currentValue(field, read) {
   if (field === "title") return typeof read.title === "string" ? read.title : undefined;
@@ -123,6 +126,9 @@ function settle(call) {
   }
   if (!STATUSES.includes(readText(call.nodeStatus))) {
     refuse("The page's status was not read as published or draft, so no edit can be saved.");
+  }
+  if (nameless(proposal) || nameless(fieldValues)) {
+    refuse("A proposed field or a read field value has no field name, so they cannot be compared.");
   }
   const named = fieldValues.map((item) => item?.field);
   if (new Set(named).size !== named.length) {

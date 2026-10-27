@@ -360,3 +360,35 @@ test("O21 the remaining branches: other outcome forms, a failed read on saved, r
   const two = [{ field: "title", value: "New" }, { field: "field_note", value: "New note" }];
   await assert.rejects(settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: two }), isNamedRefusal("title, field_note"));
 });
+
+test("O22 a proposal or read entry without a text field name stops the run instead of comparing equal", async () => {
+  const { extensionTool } = await settleModule();
+  const call = (proposedFields, fieldValues) =>
+    extensionTool({ input: renderedCall({ ...READ, fieldValues, proposedFields, outcome: "no_change", changes: [], reason: "" }), ports: {} });
+  const cases = {
+    "[{}] against [{}]": [[{}], [{}]],
+    "[{}] against [1]": [[{}], [1]],
+    "[1] against [1]": [[1], [1]],
+    "an empty proposal against [1]": [[], [1]],
+    "an empty field name": [[{ field: "", value: "" }], [{ field: "", value: "" }]],
+    "a field name that is not text": [[{ field: 3, value: "x" }], [{ field: 3, value: "x" }]],
+    "a null element": [[null], READ.fieldValues],
+  };
+  for (const [form, [proposedFields, fieldValues]] of Object.entries(cases)) {
+    await assert.rejects(call(proposedFields, fieldValues), isNamedRefusal("no field name"), form);
+  }
+  assert.deepEqual(await call([{ field: "field_note", value: "Closed on holidays" }], READ.fieldValues), { ok: true }, "named entries still compare");
+});
+
+test("O23 a raw number or object given for a list input or the read error stops the run", async () => {
+  for (const [key, sentence] of [
+    ["proposedFields", "reviewed proposal could not be read"],
+    ["fieldValues", "field values could not be read"],
+    ["changes", "changes could not be read"],
+    ["error", "error could not be read"],
+  ]) {
+    for (const raw of [5, {}]) {
+      await assert.rejects(settleWith(key, raw), isNamedRefusal(sentence), `${key} raw ${JSON.stringify(raw)}`);
+    }
+  }
+});
