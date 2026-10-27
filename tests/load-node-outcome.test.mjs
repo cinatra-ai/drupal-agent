@@ -47,6 +47,7 @@ const READ = {
   body: "<p>We open at nine.</p>",
   fieldValues: [{ field: "field_note", value: "Closed on holidays" }],
   error: { code: "", message: "" },
+  nodeStatus: "published",
 };
 const PROPOSAL = [{ field: "title", value: "Opening hours and holidays" }];
 
@@ -121,6 +122,7 @@ test("O3 the settle step follows the write step and reads its outcome, the revie
     body: ["read_node", "body"],
     fieldValues: ["read_node", "fieldValues"],
     error: ["read_node", "error"],
+    nodeStatus: ["read_node", "nodeStatus"],
     cinatra_run_id: ["start", "cinatra_run_id"],
   };
   for (const [input, [source, output]] of Object.entries(sources)) {
@@ -195,6 +197,8 @@ test("O9 the README says a refused edit, or a reviewed change that saved nothing
   assert.match(readme, /A refused edit ends the run as failed with the reason/);
   assert.match(readme, /a reviewed change that saved nothing ends the run as failed, never as an empty diff/);
   assert.doesNotMatch(readme, /Empty `changes` and empty `reason` mean no field diff/);
+  assert.doesNotMatch(readme, /Refusal writes no content/, "a refusal after writer dispatch may leave a draft");
+  assert.match(readme, /A refusal after dispatch may leave a draft/);
 });
 
 /** The flow's call for a true no_change (an empty proposal), with one input replaced as given (undefined: left out). */
@@ -210,6 +214,7 @@ async function settleWith(key, raw) {
 const UNREADABLE_LIST = {
   "left out": undefined,
   "empty text": "",
+  "white space only": "   ",
   "not JSON": "not json",
   "JSON null": "null",
   "a JSON object": '{"fields":[]}',
@@ -236,6 +241,7 @@ test("O13 an unreadable read error stops the run instead of reading as a success
   const forms = {
     "left out": undefined,
     "empty text": "",
+    "white space only": "  ",
     "not JSON": "timeout",
     "a JSON string": '"read failed"',
     "a JSON list": "[]",
@@ -258,4 +264,99 @@ test("O14 a proposal that differs from the read only in white space is refused, 
     settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [{ field: "title", value: "Opening hours " }] }),
     isNamedRefusal("title"),
   );
+});
+
+test("O15 saved and no_change carry an exactly empty reason: a denial worded as no_change stops the run", async () => {
+  const denial = "The connector denied the publication.";
+  await assert.rejects(
+    settle({ outcome: "no_change", changes: [], reason: denial }, { proposedFields: [] }),
+    isNamedRefusal(denial),
+    "the reviewer's case: an empty proposal, an empty diff, a successful read and a denial in the reason",
+  );
+  const diff = [{ field: "title", before: "Opening hours", after: "Opening hours and holidays" }];
+  await assert.rejects(settle({ outcome: "saved", changes: diff, reason: "The draft may not be stored." }), isNamedRefusal("may not be stored"));
+  await assert.rejects(settle({ outcome: "saved", changes: [], reason: denial }, { proposedFields: [] }), isNamedRefusal(denial), "publish-only");
+  for (const reason of [" ", "\n"]) {
+    await assert.rejects(settle({ outcome: "no_change", changes: [], reason }, { proposedFields: [] }), isNamedRefusal("reason is not empty"));
+  }
+  await assert.rejects(settleWith("reason", undefined), isNamedRefusal("reason is not empty"), "a reason left out is not an empty reason");
+});
+
+test("O16 a status other than published or draft stops the run", async () => {
+  for (const nodeStatus of ["published", "draft"]) {
+    assert.deepEqual(await settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [], read: { ...READ, nodeStatus } }), { ok: true });
+  }
+  for (const nodeStatus of ["unknown", "", "Published", " draft", "archived"]) {
+    await assert.rejects(
+      settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [], read: { ...READ, nodeStatus } }),
+      isNamedRefusal("status"),
+      `nodeStatus ${JSON.stringify(nodeStatus)}`,
+    );
+  }
+  await assert.rejects(settleWith("nodeStatus", undefined), isNamedRefusal("status"), "a status left out");
+});
+
+test("O17 a read error code of white space only is a failed read, not a successful one", async () => {
+  for (const code of [" ", "\t", "\n"]) {
+    const read = { ...READ, error: { code, message: "The read timed out." } };
+    await assert.rejects(
+      settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [], read }),
+      isNamedRefusal("could not be read"),
+      `error.code ${JSON.stringify(code)}`,
+    );
+  }
+});
+
+test("O18 the outcome must be one of the three values exactly, without surrounding white space", async () => {
+  const diff = [{ field: "title", before: "Opening hours", after: "Opening hours and holidays" }];
+  for (const outcome of [" saved ", "saved\n", " no_change", "refused "]) {
+    await assert.rejects(settle({ outcome, changes: diff, reason: "" }), isNamedRefusal("no declared outcome"), JSON.stringify(outcome));
+  }
+  assert.deepEqual(await settle({ outcome: "saved", changes: diff, reason: "" }), { ok: true });
+});
+
+test("O19 a refusal sentence of 399 and 400 characters is kept whole, and one of 401 is cut to 400", async () => {
+  const sentence = (n) => "abcd ".repeat(100).slice(0, n - 1) + "z";
+  for (const n of [399, 400]) {
+    await assert.rejects(settle({ outcome: "refused", changes: [], reason: sentence(n) }), (err) => {
+      assert.equal(err.name, REFUSAL_NAME);
+      assert.equal(err.message, sentence(n));
+      return true;
+    });
+  }
+  await assert.rejects(settle({ outcome: "refused", changes: [], reason: sentence(401) }), (err) => {
+    assert.equal(err.name, REFUSAL_NAME);
+    assert.equal(err.message.length, 400);
+    assert.ok(err.message.endsWith("\u2026"));
+    assert.equal(err.message.slice(0, 399), sentence(401).slice(0, 399));
+    return true;
+  });
+});
+
+test("O20 a read whose field values name a field twice stops the run instead of comparing the first", async () => {
+  const fieldValues = [
+    { field: "field_note", value: "Closed on holidays" },
+    { field: "field_note", value: "Open on holidays" },
+  ];
+  await assert.rejects(
+    settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [{ field: "field_note", value: "Closed on holidays" }], read: { ...READ, fieldValues } }),
+    isNamedRefusal("more than once"),
+  );
+});
+
+test("O21 the remaining branches: other outcome forms, a failed read on saved, refused before the input checks, equal saved, several fields", async () => {
+  for (const raw of [undefined, "null", "1", '{"outcome":"saved"}', JSON.stringify(JSON.stringify("saved"))]) {
+    await assert.rejects(settleWith("outcome", raw), isNamedRefusal("no declared outcome"), `outcome ${String(raw)}`);
+  }
+  const failedRead = { ...READ, error: { code: "not-found", message: "No such node." } };
+  const diff = [{ field: "title", before: "Opening hours", after: "Opening hours and holidays" }];
+  await assert.rejects(settle({ outcome: "saved", changes: diff, reason: "" }, { read: failedRead }), isNamedRefusal("not-found"));
+  const { extensionTool } = await settleModule();
+  const refusedCall = renderedCall({ ...READ, proposedFields: [], outcome: "refused", changes: [], reason: "The site denied it." });
+  refusedCall.changes = "not json";
+  await assert.rejects(extensionTool({ input: refusedCall, ports: {} }), isNamedRefusal("The site denied it."), "refused keeps its own reason");
+  const same = [{ field: "title", value: "Opening hours" }];
+  assert.deepEqual(await settle({ outcome: "saved", changes: [], reason: "" }, { proposedFields: same }), { ok: true });
+  const two = [{ field: "title", value: "New" }, { field: "field_note", value: "New note" }];
+  await assert.rejects(settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: two }), isNamedRefusal("title, field_note"));
 });

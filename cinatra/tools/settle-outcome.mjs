@@ -11,8 +11,12 @@
  *   proposed field equals its current value.
  * - `saved` with no change holds only for a proposal that changes nothing
  *   (an explicit publish-only request).
- * - A read that failed, an answer outside the three outcomes, or an input this
- *   module cannot read as its declared shape, stops the run.
+ * - `saved` and `no_change` carry an exactly empty reason; any reason means the
+ *   write step did not do what the answer says, and stops the run.
+ * - A read that failed (any `error.code` other than the exact empty string), a
+ *   status other than `published` or `draft`, field values that name a field
+ *   twice, an answer that is not exactly one of the three outcomes, or an input
+ *   this module cannot read as its declared shape, stops the run.
  * - It cannot see the write itself: a `saved` answer with a non-empty diff is
  *   taken on the write step's own report.
  *
@@ -22,6 +26,9 @@
  */
 
 export const OUTCOMES = ["saved", "no_change", "refused"];
+
+/** The statuses a successful read reports; the read step answers `unknown` for any other. */
+const STATUSES = ["published", "draft"];
 
 /** The ONE name the host reads as a module's refusal of a call. */
 const REFUSAL_NAME = "ExtensionToolCallRefusal";
@@ -86,8 +93,9 @@ function differingFields(proposed, read) {
 }
 
 function settle(call) {
-  const outcome = readText(call.outcome)?.trim();
-  const reason = (readText(call.reason) ?? "").trim();
+  const outcome = readText(call.outcome);
+  const statedReason = readText(call.reason);
+  const reason = (statedReason ?? "").trim();
   const changes = parseJsonish(call.changes);
   const proposed = parseJsonish(call.proposedFields);
   const fieldValues = parseJsonish(call.fieldValues);
@@ -98,6 +106,9 @@ function settle(call) {
   if (outcome === "refused") {
     refuse(reason || "The write step refused the edit without a reason; nothing is known to be saved.");
   }
+  if (statedReason !== "") {
+    refuse(`The write step answered ${outcome} but its reason is not empty, so nothing is known to be saved` + (reason ? `: ${reason}` : "."));
+  }
   // An input this module cannot read is never read as "nothing there": the flow
   // always sends each one as JSON text of its declared shape (an empty list is `[]`).
   if (!Array.isArray(proposed)) refuse("The reviewed proposal could not be read, so nothing is known to be saved.");
@@ -107,9 +118,15 @@ function settle(call) {
   const read = { title: readText(call.title), body: readText(call.body), fieldValues };
   const diff = changes;
   const proposal = proposed;
-  const readCode = error.code.trim();
-  if (readCode !== "" && outcome !== "refused") {
-    refuse(`The page could not be read (${readCode}), so no edit can be saved.`);
+  if (error.code !== "") {
+    refuse(`The page could not be read (${JSON.stringify(error.code)}), so no edit can be saved.`);
+  }
+  if (!STATUSES.includes(readText(call.nodeStatus))) {
+    refuse("The page's status was not read as published or draft, so no edit can be saved.");
+  }
+  const named = fieldValues.map((item) => item?.field);
+  if (new Set(named).size !== named.length) {
+    refuse("The page's field values name a field more than once, so they cannot be compared.");
   }
   const differing = differingFields(proposal, read);
   if (outcome === "no_change") {
@@ -118,8 +135,7 @@ function settle(call) {
     }
     if (differing.length > 0) {
       refuse(
-        `The reviewed proposal changes ${differing.join(", ")} but the write step saved nothing: ` +
-          (reason || "it gave no reason."),
+        `The reviewed proposal changes ${differing.join(", ")} but the write step saved nothing.`,
       );
     }
   }

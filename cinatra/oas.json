@@ -756,6 +756,18 @@
     },
     {
       "component_type": "DataFlowEdge",
+      "name": "read_node_to_settle_outcome_nodeStatus",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeStatus",
+      "destination_node": {
+        "$component_ref": "settle_outcome"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
       "name": "start_cinatra_run_id_to_settle_outcome_cinatra_run_id",
       "source_node": {
         "$component_ref": "start"
@@ -1485,7 +1497,8 @@
             "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
             "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
-            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}"
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
@@ -1583,6 +1596,11 @@
             }
           },
           "default": {}
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "cinatra_run_id",
