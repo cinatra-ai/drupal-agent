@@ -64,6 +64,10 @@
       {
         "name": "review_targets",
         "module": "./cinatra/tools/review-targets.mjs"
+      },
+      {
+        "name": "settle_outcome",
+        "module": "./cinatra/tools/settle-outcome.mjs"
       }
     ],
     "lifecycle": {
