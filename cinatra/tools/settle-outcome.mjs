@@ -11,7 +11,10 @@
  *   proposed field equals its current value.
  * - `saved` with no change holds only for a proposal that changes nothing
  *   (an explicit publish-only request).
- * - A read that failed, or an answer outside the three outcomes, stops the run.
+ * - A read that failed, an answer outside the three outcomes, or an input this
+ *   module cannot read as its declared shape, stops the run.
+ * - It cannot see the write itself: a `saved` answer with a non-empty diff is
+ *   taken on the write step's own report.
  *
  * It stops the run by the host's documented means: it throws an error named
  * `ExtensionToolCallRefusal` whose message is one sentence. The host then
@@ -50,6 +53,8 @@ function parseJsonish(value) {
   }
 }
 
+const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
 const textOf = (value) => (typeof value === "string" ? value : value == null ? "" : JSON.stringify(value));
 
 /** A text value the flow sends as JSON text (or as the bare text), read back; undefined when absent. */
@@ -87,23 +92,24 @@ function settle(call) {
   const proposed = parseJsonish(call.proposedFields);
   const fieldValues = parseJsonish(call.fieldValues);
   const error = parseJsonish(call.error);
-  const read = {
-    title: readText(call.title),
-    body: readText(call.body),
-    fieldValues: Array.isArray(fieldValues) ? fieldValues : [],
-  };
-  const diff = Array.isArray(changes) ? changes : [];
-  const proposal = Array.isArray(proposed) ? proposed : [];
-
   if (!OUTCOMES.includes(outcome)) {
     refuse("The write step answered no declared outcome (saved, no_change or refused), so nothing is known to be saved.");
   }
-  const readCode = error && typeof error === "object" ? textOf(error.code).trim() : "";
-  if (readCode !== "" && outcome !== "refused") {
-    refuse(`The page could not be read (${readCode}), so no edit can be saved.`);
-  }
   if (outcome === "refused") {
     refuse(reason || "The write step refused the edit without a reason; nothing is known to be saved.");
+  }
+  // An input this module cannot read is never read as "nothing there": the flow
+  // always sends each one as JSON text of its declared shape (an empty list is `[]`).
+  if (!Array.isArray(proposed)) refuse("The reviewed proposal could not be read, so nothing is known to be saved.");
+  if (!Array.isArray(fieldValues)) refuse("The page's field values could not be read, so nothing is known to be saved.");
+  if (!Array.isArray(changes)) refuse("The write step's changes could not be read, so nothing is known to be saved.");
+  if (!isPlainObject(error) || typeof error.code !== "string") refuse("The read step's error could not be read, so nothing is known to be saved.");
+  const read = { title: readText(call.title), body: readText(call.body), fieldValues };
+  const diff = changes;
+  const proposal = proposed;
+  const readCode = error.code.trim();
+  if (readCode !== "" && outcome !== "refused") {
+    refuse(`The page could not be read (${readCode}), so no edit can be saved.`);
   }
   const differing = differingFields(proposal, read);
   if (outcome === "no_change") {

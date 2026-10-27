@@ -196,3 +196,66 @@ test("O9 the README says a refused edit, or a reviewed change that saved nothing
   assert.match(readme, /a reviewed change that saved nothing ends the run as failed, never as an empty diff/);
   assert.doesNotMatch(readme, /Empty `changes` and empty `reason` mean no field diff/);
 });
+
+/** The flow's call for a true no_change (an empty proposal), with one input replaced as given (undefined: left out). */
+async function settleWith(key, raw) {
+  const { extensionTool } = await settleModule();
+  const input = renderedCall({ ...READ, proposedFields: [], outcome: "no_change", changes: [], reason: "" });
+  if (raw === undefined) delete input[key];
+  else input[key] = raw;
+  return extensionTool({ input, ports: {} });
+}
+
+/** Unreadable forms of a list input: each must stop the run, never read as an empty list. */
+const UNREADABLE_LIST = {
+  "left out": undefined,
+  "empty text": "",
+  "not JSON": "not json",
+  "JSON null": "null",
+  "a JSON object": '{"fields":[]}',
+  "a JSON string": '"[]"',
+  "double-encoded": JSON.stringify(JSON.stringify([])),
+};
+
+for (const [id, key, sentence] of [
+  ["O10", "proposedFields", "reviewed proposal could not be read"],
+  ["O11", "fieldValues", "field values could not be read"],
+  ["O12", "changes", "changes could not be read"],
+]) {
+  test(`${id} an unreadable ${key} stops the run instead of reading as an empty list`, async () => {
+    const { extensionTool } = await settleModule();
+    const baseline = renderedCall({ ...READ, proposedFields: [], outcome: "no_change", changes: [], reason: "" });
+    assert.deepEqual(await extensionTool({ input: baseline, ports: {} }), { ok: true }, "the readable call passes");
+    for (const [form, raw] of Object.entries(UNREADABLE_LIST)) {
+      await assert.rejects(settleWith(key, raw), isNamedRefusal(sentence), `${key} ${form}`);
+    }
+  });
+}
+
+test("O13 an unreadable read error stops the run instead of reading as a successful read", async () => {
+  const forms = {
+    "left out": undefined,
+    "empty text": "",
+    "not JSON": "timeout",
+    "a JSON string": '"read failed"',
+    "a JSON list": "[]",
+    "JSON null": "null",
+    "an object without a code": '{"message":"The read failed."}',
+    "a code that is not text": '{"code":0,"message":""}',
+    "double-encoded": JSON.stringify(JSON.stringify({ code: "", message: "" })),
+  };
+  for (const [form, raw] of Object.entries(forms)) {
+    await assert.rejects(settleWith("error", raw), isNamedRefusal("error could not be read"), `error ${form}`);
+  }
+});
+
+test("O14 a proposal that differs from the read only in white space is refused, not passed as no_change", async () => {
+  await assert.rejects(
+    settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [{ field: "body", value: "<p>We open at nine.</p>\n" }] }),
+    isNamedRefusal("body"),
+  );
+  await assert.rejects(
+    settle({ outcome: "no_change", changes: [], reason: "" }, { proposedFields: [{ field: "title", value: "Opening hours " }] }),
+    isNamedRefusal("title"),
+  );
+});
