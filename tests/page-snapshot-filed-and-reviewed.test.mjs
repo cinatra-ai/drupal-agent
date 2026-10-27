@@ -4,7 +4,7 @@
 // proposed words, the application reviews it, and the write step follows the
 // review.
 //
-// The eight arms pin: the nine steps on one road; the read step; the compose
+// The eight arms pin: the ten steps on one road; the read step; the compose
 // step and the one example form it carries; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
 // step after the review; the declared module; and the end node binding nothing.
@@ -37,6 +37,7 @@ const ROAD = [
   "gather_page_review",
   "page_review_gate",
   "load_node",
+  "settle_outcome",
   "emit_output",
   "end",
 ];
@@ -215,7 +216,7 @@ const DRUPAL_FIXTURE_FORM = {
 
 // ---------------------------------------------------------------------------
 
-test("S1 the nine steps stand on one road, the write step after the review", () => {
+test("S1 the ten steps stand on one road, the write step after the review", () => {
   assert.deepEqual(
     (oas.nodes ?? []).map((n) => n.$component_ref),
     ROAD,
@@ -227,7 +228,7 @@ test("S1 the nine steps stand on one road, the write step after the review", () 
     e.to_node.$component_ref,
   ]);
   const expected = ROAD.slice(1).map((to, i) => [ROAD[i], to]);
-  assert.deepEqual(edges, expected, "eight control edges, one road, in exactly this order");
+  assert.deepEqual(edges, expected, "nine control edges, one road, in exactly this order");
   assert.equal(oas.start_node.$component_ref, "start");
   assert.ok(
     ROAD.indexOf("load_node") > ROAD.indexOf("page_review_gate") &&
@@ -428,11 +429,14 @@ test("S6 the write step follows the review", () => {
   for (const tool of WRITE_TOOLS) {
     assert.ok(node.data.system.includes(tool), `the write step names ${tool}`);
   }
-  assert.deepEqual(titles(node.outputs), ["nodeId", "changes", "reason"]);
+  assert.deepEqual(titles(node.outputs), ["nodeId", "changes", "reason", "outcome"]);
 });
 
 test("S7 the declared module files the set it is handed and nothing else", async () => {
-  assert.deepEqual(pkg.cinatra.tools, [{ name: "review_targets", module: "./cinatra/tools/review-targets.mjs" }]);
+  assert.deepEqual(pkg.cinatra.tools, [
+    { name: "review_targets", module: "./cinatra/tools/review-targets.mjs" },
+    { name: "settle_outcome", module: "./cinatra/tools/settle-outcome.mjs" },
+  ]);
   const { extensionTool } = await import("../cinatra/tools/review-targets.mjs");
   assert.equal(typeof extensionTool, "function");
 

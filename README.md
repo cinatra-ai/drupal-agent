@@ -12,7 +12,7 @@ Edit Drupal content from plain-language instructions and return a field diff for
 
 **API contract.** Inputs are strings; `changes` contains `{field, before, after}` objects. Publishing requires an explicit `drupal_node_publish` request. A published edit is one `drupal_node_create_draft_revision` call that saves the draft and reads it back; it is never followed with a generic live-default update.
 
-**Troubleshooting.** Read `reason` on refusal: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reading are required. Refusal writes no content. A separate page requires explicit choice. Empty `changes` and empty `reason` mean no field diff; an explicit publish-only action also has no field diff.
+**Troubleshooting.** A refused edit ends the run as failed, and the run's error carries the reason: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reading are required. Refusal writes no content. A separate page requires explicit choice. A completed run with empty `changes` means the reviewed change needed no field edit, or an explicit publish-only action; a reviewed change that saved nothing ends the run as failed with its reason, never as an empty diff.
 
 ## Works with
 
