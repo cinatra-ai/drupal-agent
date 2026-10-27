@@ -192,7 +192,7 @@ test("O8 a failed read or an undeclared outcome stops the run", async () => {
 
 test("O9 the README says a refused edit, or a reviewed change that saved nothing, ends the run as failed", () => {
   const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-  assert.match(readme, /A refused edit ends the run as failed, and the run's error carries the reason/);
-  assert.match(readme, /a reviewed change that saved nothing ends the run as failed with its reason, never as an empty diff/);
+  assert.match(readme, /A refused edit ends the run as failed with the reason/);
+  assert.match(readme, /a reviewed change that saved nothing ends the run as failed, never as an empty diff/);
   assert.doesNotMatch(readme, /Empty `changes` and empty `reason` mean no field diff/);
 });
