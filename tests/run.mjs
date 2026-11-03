@@ -20,3 +20,4 @@ import "./load-node-outcome.test.mjs";
 import "./oas-template-input-placeholders.test.mjs";
 import "./readme-states-flow.test.mjs";
 import "./start-input-contract.test.mjs";
+import "./package-version.test.mjs";
