@@ -13,6 +13,7 @@
 // Add a suite by importing it below.
 
 import "./oas-bridge-output-declarations.test.mjs";
+import "./lifecycle-declaration.test.mjs";
 import "./page-snapshot-filed-and-reviewed.test.mjs";
 
 import "./protected-draft-flow.test.mjs";
