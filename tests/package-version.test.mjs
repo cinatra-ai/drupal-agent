@@ -5,11 +5,13 @@ import { readFileSync } from "node:fs";
 // An installed Cinatra host keeps one stored template per package, marked with its version,
 // and a registry manifest per published version. At boot it skips the import of a template
 // whose version it already holds, unless the template's lifecycle projection drifted from the
-// manifest or the boot repaired a missing install record (both re-import at the same version;
-// a missing record whose repair is refused or fails is still skipped). So a change to the flow
-// or to the declared tools that keeps the old version is not re-imported by an install whose
-// lifecycle projection matches and whose install record is live: the old manifest then rejects
-// the new tool as undeclared, or the old flow keeps running.
+// manifest or the boot repaired a missing install record (both re-import at the same version).
+// When the lifecycle projection matches, a missing record whose repair is refused or fails is
+// still skipped; when it drifted, the template is imported again before a repair of a missing
+// record is tried. So a change to the flow or to the declared tools that keeps the old version
+// is not re-imported by an install whose lifecycle projection matches and whose install record
+// is live: the old manifest then rejects the new tool as undeclared, or the old flow keeps
+// running.
 // The settle_outcome tool and its flow step arrived after 0.1.4, so the version that carries
 // them is 0.1.5. A version below 0.1.5 would hide them from each such install that already
 // holds 0.1.4.
