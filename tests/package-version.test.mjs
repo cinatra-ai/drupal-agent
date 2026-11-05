@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // An installed Cinatra host keeps a stored template and a registry manifest per package
-// version. At boot it skips a template whose version it already holds, so a change to the
-// flow or to the declared tools that keeps the old version is never re-imported by an
-// existing install: the old manifest then rejects the new tool as undeclared, or the old
-// flow keeps running. The settle_outcome tool and its flow step arrived after 0.1.4, so the
-// version that carries them is 0.1.5. A version below 0.1.5 would hide them from every
-// install that already holds 0.1.4.
+// version. At boot it skips the import of a template whose version it already holds, unless
+// the template's lifecycle projection drifted or its install record is missing (those are
+// repaired at the same version). So a change to the flow or to the declared tools that keeps
+// the old version is, for an install whose template and record are intact, not re-imported:
+// the old manifest then rejects the new tool as undeclared, or the old flow keeps running.
+// The settle_outcome tool and its flow step arrived after 0.1.4, so the version that carries
+// them is 0.1.5. A version below 0.1.5 would hide them from every intact install that already
+// holds 0.1.4.
 const SETTLE_OUTCOME_FIRST_VERSION = [0, 1, 5];
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
