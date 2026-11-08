@@ -22,8 +22,8 @@ const oas = JSON.parse(readFileSync(path.join(root, "cinatra/oas.json"), "utf8")
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 const parts = oas.$referenced_components ?? {};
 
-const EXTENSION = "@cinatra-ai/cms-snapshot-artifact";
-const PAGE_TYPE = "@cinatra-ai/cms-snapshot-artifact:cms-page";
+const EXTENSION = "@cinatra-ai/website-artifacts";
+const PAGE_TYPE = "@cinatra-ai/website-artifacts:page-snapshot";
 const PACKAGE_NAME = "@cinatra-ai/drupal-agent";
 const LLM_BRIDGE_PATH = "/api/llm-bridge";
 const PASSTHROUGH_PATH = "/api/agents/passthrough";
