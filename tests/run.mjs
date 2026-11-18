@@ -22,3 +22,4 @@ import "./oas-template-input-placeholders.test.mjs";
 import "./readme-states-flow.test.mjs";
 import "./start-input-contract.test.mjs";
 import "./package-version.test.mjs";
+import "./read-failure-ends-run.test.mjs";
