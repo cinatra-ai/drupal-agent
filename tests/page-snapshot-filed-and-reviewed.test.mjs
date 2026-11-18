@@ -68,6 +68,12 @@ function edgeInto(node, input) {
   );
 }
 
+function edgesInto(node, input) {
+  return (oas.data_flow_connections ?? []).filter(
+    (e) => e.destination_node.$component_ref === node && e.destination_input === input,
+  );
+}
+
 function assertEdge(node, input, fromNode, fromOutput) {
   const edge = edgeInto(node, input);
   assert.ok(edge, `"${node}.${input}" is edge-sourced`);
@@ -341,7 +347,8 @@ test("S4 the filing step files the page form as the display's type, and the pack
   assert.equal(input.title, "{{ pageTitle }}");
   assert.equal(input.content, "{# pyagentspec-input-hint (do not remove): {{ pageForm }} #}{{ pageForm | tojson }}");
   assert.equal(node.data.agent_run_id, "{{ cinatra_run_id }}");
-  assertEdge("file_page", "pageTitle", "compose_change", "pageTitle");
+  assertEdge("file_page", "pageTitle", "read_node", "title");
+  assert.equal(edgesInto("file_page", "pageTitle").length, 1, "the filed title has one source, the read step");
   assertEdge("file_page", "pageForm", "compose_change", "pageForm");
   assertEdge("file_page", "cinatra_run_id", "start", "cinatra_run_id");
   assert.deepEqual(titles(node.outputs), ["artifactId", "representationRevisionId"]);
@@ -376,7 +383,8 @@ test("S5 the projection step names the filed revision to the review step, the fl
   assert.equal(gate.metadata.cinatra.a2uiSurfaceId, "drupal-agent:page-review");
   assert.ok(titles(gate.inputs).includes("reviewTargets"), "the review step declares the input its marker names");
   assertEdge("page_review_gate", "reviewTargets", "gather_page_review", "reviewTargets");
-  assertEdge("page_review_gate", "pageTitle", "compose_change", "pageTitle");
+  assertEdge("page_review_gate", "pageTitle", "read_node", "title");
+  assert.equal(edgesInto("page_review_gate", "pageTitle").length, 1, "the title the review shows has one source, the read step");
 
   const node = part("gather_page_review");
   assert.equal(node.component_type, "ApiNode");
