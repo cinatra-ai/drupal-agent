@@ -9,10 +9,12 @@
 // on the one road of the flow, so a failed read files no page snapshot.
 //
 // Three arms: R1 the read step declares the error output and its
-// instructions answer the two failure codes, and the empty code on a success;
-// R2 no model step lists a completed code; R3 the steps after the read, the
-// filing step and the review step among them, are reached only through the
-// read step.
+// instructions ASSIGN each failure code to its failure condition (a code
+// that only occurs somewhere in the text, in a sentence that forbids it for
+// example, is no assignment), and answer the empty code on a success; R2 no
+// model step lists a completed code; R3 every step after the read, the
+// settle, output and end steps among them, is reached only through the read
+// step, and every control edge names both of its ends.
 //
 // Zero-dependency; runs on plain node:test via tests/run.mjs.
 
@@ -29,6 +31,10 @@ const parts = oas.$referenced_components ?? {};
 const LLM_BRIDGE_PATH = "/api/llm-bridge";
 const READ = "read_node";
 const FAILURE_CODES = ["not-found", "read-failed"];
+const SUCCESS_SENTENCE = "`code` and `message` are both the empty string on a successful read.";
+const ASSIGN_SENTENCE =
+  "When the read says the node does not exist, `code` is `not-found`; " +
+  "when the read fails in any other way, `code` is `read-failed`.";
 
 const bridgeSteps = Object.entries(parts).filter(
   ([, node]) =>
@@ -52,15 +58,28 @@ test("R1: the read step answers a failure in its error output", () => {
     "string",
     "the error output carries a string code",
   );
-  const system = node.data?.system ?? "";
-  for (const code of FAILURE_CODES) {
-    assert.ok(system.includes(`\`${code}\``), `the read step's instructions answer ${code} on a failed read`);
-  }
-  assert.match(
-    system,
-    /`code` and `message` are both the empty string on a successful read/,
+  const system = (node.data?.system ?? "").replace(/[ \t]+/g, " ");
+  const errorLine = system.split("\n").find((line) => line.startsWith("- `error`"));
+  assert.ok(errorLine, "the read step's instructions have an `error` line");
+  // The sentences of that line; the code assignment is one whole sentence of it.
+  const sentences = errorLine.trim().split(/(?<=\.)\s+/);
+  assert.ok(
+    sentences[0].endsWith(SUCCESS_SENTENCE),
     "a successful read answers the empty code, so a success is never stopped",
   );
+  assert.ok(
+    sentences.includes(ASSIGN_SENTENCE),
+    "the instructions assign not-found to a node that does not exist and read-failed to any other failed read",
+  );
+  // The allow-list half: each failure code is named once in the whole text,
+  // in that assignment, so no other sentence can forbid or redirect it.
+  for (const code of FAILURE_CODES) {
+    assert.equal(
+      system.split(`\`${code}\``).length - 1,
+      1,
+      `${code} occurs once in the read step's instructions, in the assignment`,
+    );
+  }
 });
 
 test("R2: no model step lists a completed code", () => {
@@ -78,29 +97,51 @@ test("R2: no model step lists a completed code", () => {
   }
 });
 
-test("R3: the filing step and the review step are reached only through the read step", () => {
+test("R3: every step after the read step is reached only through the read step", () => {
   const edges = oas.control_flow_connections ?? [];
   const startId = oas.start_node?.$component_ref;
   assert.ok(startId, "the flow names its start node");
+  // Fail closed: an edge that names no target or no source is not skipped.
+  for (const edge of edges) {
+    assert.ok(
+      edge.from_node?.$component_ref && edge.to_node?.$component_ref,
+      `control edge ${edge.name} names both of its ends`,
+    );
+  }
   // Every node reachable from the start without passing the read step.
   const seen = new Set([startId]);
   const queue = [startId];
   while (queue.length > 0) {
     const from = queue.shift();
     for (const edge of edges) {
-      if (edge.from_node?.$component_ref !== from) continue;
-      const to = edge.to_node?.$component_ref;
-      if (!to || to === READ || seen.has(to)) continue;
+      if (edge.from_node.$component_ref !== from) continue;
+      const to = edge.to_node.$component_ref;
+      if (to === READ || seen.has(to)) continue;
       seen.add(to);
       queue.push(to);
     }
   }
   assert.ok(
-    edges.some((edge) => edge.from_node?.$component_ref === startId && edge.to_node?.$component_ref === READ),
+    edges.some((edge) => edge.from_node.$component_ref === startId && edge.to_node.$component_ref === READ),
     "the start leads to the read step",
   );
-  for (const step of ["compose_change", "file_page", "gather_page_review", "page_review_gate", "load_node"]) {
+  for (const step of [
+    "compose_change",
+    "file_page",
+    "gather_page_review",
+    "page_review_gate",
+    "load_node",
+    "settle_outcome",
+    "emit_output",
+    "end",
+  ]) {
     assert.ok(parts[step], `${step} keeps its id`);
-    assert.equal(seen.has(step), false, `${step} is reached only after the read step`);
   }
+  // The allow-list half: nothing but the start itself is reached without the
+  // read step, so a new step or edge cannot bypass the read unnamed.
+  assert.deepEqual(
+    [...seen],
+    [startId],
+    "no step is reached from the start without passing the read step",
+  );
 });
