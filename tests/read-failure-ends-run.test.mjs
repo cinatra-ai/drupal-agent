@@ -11,28 +11,33 @@
 // Three arms: R1 the read step declares the error output, its instructions
 // hold the failure contract (the empty code on a success, `not-found` for a
 // node that does not exist, `read-failed` for any other failed read) and
-// NOTHING ELSE: the whole instruction text is pinned word for word, so no
-// added, changed or removed sentence can forbid or redirect a code, empty the
-// code after a failure or tell the step to go on; the rest of the step (name,
-// inputs, outputs and their schemas, metadata) is pinned too; and no other
-// step names those codes; R2 no model step lists a completed code; R3 every
-// step after the read, the settle, output and end steps among them, is
-// reached only through the read step (the walk names no step but the read
-// step, so a renamed step passes), and every control edge names both of its
-// ends.
+// NOTHING ELSE: the instructions and the input template are pinned byte for
+// byte (see below), so no added, changed, moved or removed character can
+// forbid or redirect a code, empty the code after a failure, invert a
+// condition or tell the step to go on; the rest of the step (name, inputs,
+// outputs and their schemas, metadata) is pinned too, the step's data holds
+// no other key, and no other step names those codes; R2 no model step lists a
+// completed code; R3 every step after the read, the settle, output and end
+// steps among them, is reached only through the read step (the walk names no
+// step but the read step, so a renamed step passes), and every control edge
+// names both of its ends.
 //
-// R1 compares WORDS, not characters: case, white space, line breaks,
-// backticks, quotes, bold, heading and list marks and punctuation are
-// formatting and may change freely; letters (of any script), digits and the
-// operator marks = ! < > ~ are words. A changed word of the read step's
-// instructions fails R1 on purpose, also when it is harmless: a reworded
-// instruction is a new contract, so the pinned text below changes with it,
-// in the same reviewed diff.
+// R1 is an allow-list over ALL of the text, never a deny-list over classes of
+// characters: the only change it forgives is the length of a run of white
+// space (space, tab, carriage return, line feed), which collapses to one
+// space before the comparison. Case, punctuation, symbols, quotes, backticks,
+// list, heading and bold marks, sentence boundaries, letters of every script,
+// every other character (any non-ASCII one, zero-width and other-width white
+// space included) and any text before, after or between the pinned words
+// count: a reformat or a rewording fails on purpose, also when it is
+// harmless. Changing the flow's instructions means changing the pinned text
+// and its named sha256 below, in the same reviewed diff.
 //
 // Zero-dependency; runs on plain node:test via tests/run.mjs.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -47,62 +52,80 @@ const READ = "read_node";
 const FAILURE_CODES = ["not-found", "read-failed"];
 const NAMES_A_FAILURE_CODE = /not[\s_-]*found|read[\s_-]*failed/i;
 
-// The words of a text, in order: what R1 compares.
-const wordsOf = (text) =>
-  (text.normalize("NFKC").toLowerCase().match(/[\p{L}\p{N}\p{M}]+(?:[-_][\p{L}\p{N}\p{M}]+)*|[=!<>~]+/gu) ?? []).join(" ");
-// The sentences of a text, as words: only to name what differs.
-const sentencesOf = (text) => text.split(/\n|(?<=[.!?])\s+/).map(wordsOf).filter((s) => s !== "");
+// What R1 compares: runs of space, tab, CR and LF become one space; nothing else is normalised.
+const collapse = (text) => text.replace(/[ \t\r\n]+/g, " ");
+const sha256Of = (text) => createHash("sha256").update(text, "utf8").digest("hex");
+// Where two collapsed texts first differ, for the failure message.
+const firstDifference = (got, pinned) => {
+  let at = 0;
+  while (at < got.length && at < pinned.length && got[at] === pinned[at]) at += 1;
+  const cut = (text) => JSON.stringify(text.slice(Math.max(0, at - 30), at + 50));
+  return `at character ${at}: the flow has ${cut(got)}, the pin has ${cut(pinned)}`;
+};
+// Every character outside printable ASCII (white space of the four kinds aside), as code points.
+const nonAsciiOf = (text) =>
+  [...new Set(text.match(/[^\x20-\x7e\t\r\n]/gu) ?? [])]
+    .map((ch) => `U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`)
+    .sort();
+// The only non-ASCII character of the read step's texts: the em dash of the `error` line.
+const NON_ASCII_ALLOWED = ["U+2014"];
 
-// The failure contract: the `error` line of the read step's instructions, as words.
-const SUCCESS = "code and message are both the empty string on a successful read";
+// The failure contract: the `error` line of the read step's instructions.
+const SUCCESS = "`code` and `message` are both the empty string on a successful read.";
 const ASSIGN =
-  "when the read says the node does not exist code is not-found " +
-  "when the read fails in any other way code is read-failed";
+  "When the read says the node does not exist, `code` is `not-found`; " +
+  "when the read fails in any other way, `code` is `read-failed`.";
 const ON_FAILURE =
-  "message then states the failure in one sentence title and body are empty strings and fieldvalues is the empty list";
-const CONTRACT = `error ${SUCCESS} ${ASSIGN} ${ON_FAILURE}`;
+  "`message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.";
+const CONTRACT = "- `error` \u2014 " + [SUCCESS, ASSIGN, ON_FAILURE].join(" ");
 
-// The read step's whole instructions, as words, one sentence per item.
+// The pin: the read step's instructions and its input template, one line of the flow's text per item, as the flow
+// holds them (the em dash is written as a u-escape, so this file stays ASCII). R1 compares the flow's text with it byte
+// for byte once runs of white space are collapsed; the sha256 of the collapsed pinned text is named next to it, so a
+// changed pin shows in the diff as a changed text AND a changed digest.
 const READ_SYSTEM = [
-  "you are the drupal content reader",
-  "read the specified node and hand its current values to the next step",
-  "you change nothing on the site",
-  "rules",
-  "1",
-  "call drupal_node_get first to read current content before any changes",
-  "steps",
-  "step 1 load node call drupal_node_get with instanceid nodeid",
-  "capture the current value of every field the user might be editing",
-  "step 2 compose the public address call drupal_instances_list and take the item whose id equals instanceid",
-  "take its siteurl remove every trailing slash then append node and the node id",
-  "when no item matches or the site address does not start with https the address is the empty string",
-  "what each output field holds",
-  "title the node s title as the read answers it",
-  "body the raw source markup of body exactly as the read answers it the empty string when the read carries no body",
-  "fieldvalues one item per field of the read whose name starts with field and whose value is text field is the field name and value its value as text",
-  "address the node s public address from step 2",
-  "nodestatus from this actual read only published for status true 1 1 or published draft for false 0 0 unpublished or draft unknown otherwise including any failed read",
-  "never copy a caller hint",
-  "nodebundle the actual read s bundle string or the empty string when absent or the read failed",
-  "nodelanguage the actual read s langcode only when it is a non-empty language code of letters digits underscores or hyphens otherwise the empty string",
-  "never copy a caller hint or guess the site default",
-  "a failed read always returns the empty string",
-  `error ${SUCCESS}`,
-  ASSIGN,
-  ON_FAILURE,
-  "how inputs arrive",
-  "inputs are injected via the flow conversation history",
-  "read instanceid and nodeid from the most recent user message",
-  "what to never do",
-  "never write to the site this step only reads",
-  "never invent a field or a value hand over only what the read answered",
-];
+  "You are the Drupal content reader. Read the specified node and hand its current values to the next step. You change nothing on the site.",
+  "",
+  "## Rules",
+  "",
+  "1. Call `drupal_node_get` first to read current content before any changes.",
+  "",
+  "## Steps",
+  "",
+  "**STEP 1 \u2014 Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.",
+  "",
+  "**STEP 2 \u2014 Compose the public address:** Call `drupal_instances_list` and take the item whose `id` equals `instanceId`. Take its `siteUrl`, remove every trailing slash, then append `/node/` and the node id. When no item matches, or the site address does not start with `https://`, the address is the empty string.",
+  "",
+  "## What each output field holds",
+  "",
+  "- `title` \u2014 the node's title as the read answers it.",
+  "- `body` \u2014 the raw source markup of `body` exactly as the read answers it; the empty string when the read carries no `body`.",
+  "- `fieldValues` \u2014 one item per field of the read whose name starts with `field_` and whose value is text: `field` is the field name and `value` its value as text.",
+  "- `address` \u2014 the node's public address from STEP 2.",
+  "- `nodeStatus` \u2014 from this actual read only: `published` for status true, 1, \"1\" or \"published\"; `draft` for false, 0, \"0\", \"unpublished\" or \"draft\"; `unknown` otherwise (including any failed read). Never copy a caller hint.",
+  "- `nodeBundle` \u2014 the actual read's `bundle` string, or the empty string when absent or the read failed.",
+  "- `nodeLanguage` \u2014 the actual read's `langcode` only, when it is a non-empty language code of letters, digits, underscores or hyphens; otherwise the empty string. Never copy a caller hint or guess the site default. A failed read always returns the empty string.",
+  "- `error` \u2014 `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.",
+  "",
+  "## How inputs arrive",
+  "",
+  "Inputs are injected via the flow conversation history. Read `instanceId` and `nodeId` from the most recent user message.",
+  "",
+  "## What to NEVER do",
+  "",
+  "- Never write to the site: this step only reads.",
+  "- Never invent a field or a value: hand over only what the read answered.",
+].join("\n");
+const READ_SYSTEM_SHA256 = "2d970a0c0edbf505f54227b3e8a3d63b2e615cb760daf88d4e63a80a6371b10b";
 const READ_USER = [
-  "inputs",
-  "instanceid instanceid",
-  "nodeid nodeid",
-  "follow the steps in the system instructions read the node with drupal_node_get compose its public address from drupal_instances_list and fill the declared output fields",
-];
+  "Inputs:",
+  "- instanceId: {{ instanceId }}",
+  "- nodeId: {{ nodeId }}",
+  "",
+  "Follow the steps in the system instructions: read the node with drupal_node_get, compose its public address from drupal_instances_list, and fill the declared output fields.",
+].join("\n");
+const READ_USER_SHA256 = "96f6f9943b53f42a9241d252ee140eb26cdf055c3d2e797b93151baaf778dbc1";
+
 // The keys of the read step's data: a new key could carry an instruction R1 does not read.
 const READ_DATA_KEYS = ["agent_id", "agent_run_id", "cinatra_llm", "system", "user"];
 // The rest of the read step (its name, inputs, outputs and their schemas, metadata; the data without the two texts
@@ -132,14 +155,15 @@ const READ_STEP_REST = {
   metadata: { cinatra: { riskClass: "read_only", requiresApproval: false, packageName: "@cinatra-ai/drupal-agent" } },
 };
 
-// Fails unless the words of `text` are exactly the pinned sentences; names the sentences that differ.
-const assertWords = (text, pinned, what) => {
-  const got = sentencesOf(text);
+// Fails unless `text` is the pinned text byte for byte once runs of white space are collapsed.
+const assertPinned = (text, pinned, sha256, what) => {
+  const want = collapse(pinned);
+  assert.equal(sha256Of(want), sha256, `${what}: the pinned text and its named sha256 belong together (change both, on purpose)`);
+  const got = collapse(text);
   assert.ok(
-    wordsOf(text) === pinned.join(" "),
-    `${what} are exactly the pinned instructions; ` +
-      `added or changed: ${JSON.stringify(got.filter((s) => !pinned.includes(s)))}; ` +
-      `missing or changed: ${JSON.stringify(pinned.filter((s) => !got.includes(s)))}`,
+    got === want,
+    `${what} are the pinned text byte for byte once runs of white space are collapsed; ` +
+      `the flow's text has sha256 ${sha256Of(got)}, the pin names ${sha256}; first difference ${firstDifference(got, want)}`,
   );
 };
 
@@ -182,27 +206,30 @@ test("R1: the read step answers a failure in its error output, by its failure co
   assert.deepEqual({ ...node, data: dataRest }, READ_STEP_REST, "the read step's name, inputs, outputs, schemas and metadata are the pinned ones");
   assert.deepEqual(Object.keys(llm ?? {}).sort(), ["preferredModel", "preferredProvider"], "the model choice has its two keys");
   for (const value of Object.values(llm)) assert.match(value, /^[\w.:\/-]+$/, "the model choice holds names only");
-  const words = wordsOf(data.system);
+  // Any non-ASCII character is named: the em dash of the `error` line is the only one the texts may hold.
+  assert.deepEqual(nonAsciiOf(data.system), NON_ASCII_ALLOWED, "the instructions hold no non-ASCII character but the em dash");
+  assert.deepEqual(nonAsciiOf(data.user), [], "the input template holds no non-ASCII character");
+  assert.deepEqual(nonAsciiOf(READ_SYSTEM), NON_ASCII_ALLOWED, "the pinned instructions hold no non-ASCII character but the em dash");
+  assert.deepEqual(nonAsciiOf(READ_USER), [], "the pinned input template holds no non-ASCII character");
+  const text = collapse(data.system);
   // The contract, named: the success sentence, the assignment and the failure answer, in one `error` line.
+  assert.ok(text.includes(SUCCESS), "a successful read answers the empty code, so a success is never stopped");
   assert.ok(
-    words.includes(`error ${SUCCESS}`),
-    "a successful read answers the empty code, so a success is never stopped",
-  );
-  assert.ok(
-    words.includes(ASSIGN),
+    text.includes(ASSIGN),
     "the instructions assign not-found to a node that does not exist and read-failed to any other failed read",
   );
-  assert.equal(words.split(CONTRACT).length - 1, 1, "the three sentences are the one `error` line, in order");
-  // The only-instruction half: the whole text is the pinned one, so the contract is the only sentence on
-  // the codes, the code and message fields, an empty code after a failure or going on after one.
-  assertWords(data.system, READ_SYSTEM, "the read step's instructions");
-  assertWords(data.user, READ_USER, "the read step's input template");
+  assert.equal(text.split(CONTRACT).length - 1, 1, "the three sentences are the one `error` line, in order");
+  // The only-instruction half: the whole text is the pinned one, byte for byte once runs of white space are
+  // collapsed, so the contract is the only sentence on the codes, the code and message fields, an empty code
+  // after a failure or going on after one, and no character, mark or symbol can change what a sentence says.
+  assertPinned(data.system, READ_SYSTEM, READ_SYSTEM_SHA256, "the read step's instructions");
+  assertPinned(data.user, READ_USER, READ_USER_SHA256, "the read step's input template");
   for (const code of FAILURE_CODES) {
-    assert.equal(words.split(code).length - 1, 1, `${code} occurs once in the read step's instructions, in the assignment`);
+    assert.equal(text.split(code).length - 1, 1, `${code} occurs once in the read step's instructions, in the assignment`);
   }
   // No other step, and nothing outside the steps, names the read step's failure codes.
   const elsewhere = stringsOf({ ...oas, $referenced_components: { ...parts, [READ]: undefined } }, "")
-    .filter(([, text]) => NAMES_A_FAILURE_CODE.test(text))
+    .filter(([, value]) => NAMES_A_FAILURE_CODE.test(value))
     .map(([at]) => at);
   assert.deepEqual(elsewhere, [], "no text outside the read step names not-found or read-failed");
 });
