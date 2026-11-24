@@ -16,6 +16,9 @@ import { readFileSync } from "node:fs";
 // them is 0.1.5. A version below 0.1.5 would hide them from each such install that already
 // holds 0.1.4.
 const SETTLE_OUTCOME_FIRST_VERSION = [0, 1, 5];
+// The publish card's node id row and the write step's check that the node did not change
+// during the review arrived after 0.1.7, so the version that carries them is 0.1.8.
+const NODE_ID_ROW_FIRST_VERSION = [0, 1, 8];
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const flow = JSON.parse(readFileSync(new URL("../cinatra/oas.json", import.meta.url), "utf8"));
@@ -41,6 +44,17 @@ test("the package version carries the settle_outcome tool and its flow step", ()
   assert.ok(
     atLeast(parse(pkg.version), SETTLE_OUTCOME_FIRST_VERSION),
     `version ${pkg.version} is below ${SETTLE_OUTCOME_FIRST_VERSION.join(".")}, the first version that carries settle_outcome`,
+  );
+});
+
+test("the package version carries the node id row of the publish card and the change check", () => {
+  const write = flow.$referenced_components.load_node;
+  const rows = write.metadata?.cinatra?.publishRows ?? [];
+  assert.ok(rows.some((row) => row.input === "nodeId"), "the publish card shows the node id");
+  assert.ok(write.inputs.some((input) => input.title === "nodeChanged"), "the write step gets the change time it checks");
+  assert.ok(
+    atLeast(parse(pkg.version), NODE_ID_ROW_FIRST_VERSION),
+    `version ${pkg.version} is below ${NODE_ID_ROW_FIRST_VERSION.join(".")}, the first version that carries the node id row`,
   );
 });
 

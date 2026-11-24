@@ -8,7 +8,10 @@
 // decision. So `load_node` declares it, with the rows the publish card shows.
 // The application opens that card only after an approved artifact review
 // earlier in the same run; `page_review_gate` is that review, directly in
-// front of the write.
+// front of the write. The card names the node by its site, its id and its
+// title: two nodes of one site can share a title, never an id. Before any
+// site write, the write step reads the node again and writes nothing when it
+// changed during the review.
 //
 // These cases restate the readers' rules over this flow: the application's
 // compiler (cinatra-ai/cinatra, packages/agents/src/oas-compiler.ts,
@@ -33,20 +36,11 @@ const SITE_WRITE_TOOLS = ["drupal_node_publish", "drupal_node_update", "drupal_n
 const ACTION_KINDS = ["ApiNode", "AgentNode", "FlowNode", "ParallelFlowNode"];
 const NO_CONNECTOR_KINDS = ["StartNode", "EndNode", "InputMessageNode", "OutputMessageNode", "BranchingNode"];
 const REQUEST_LABEL = "Requested change (a request to publish makes the node live)";
-const FIELDS_LABEL = "Fields to write (saved as draft; not live unless published)";
 const ROWS = [
   { label: "Drupal site", input: "instanceId" },
+  { label: "Node ID", input: "nodeId" },
   { label: "Current title", input: "title" },
   { label: REQUEST_LABEL, input: "instructions" },
-  {
-    kind: "list",
-    label: FIELDS_LABEL,
-    input: "proposedFields",
-    columns: [
-      { label: "Field", field: "field" },
-      { label: "New value", field: "value" },
-    ],
-  },
 ];
 
 const cinatraOf = (component) => component?.metadata?.cinatra ?? {};
@@ -85,19 +79,53 @@ test("the write step is the one step that names a site write tool", () => {
   }
 });
 
-test("the publish card shows the site, the current title, the requested change and the fields to write", () => {
-  assert.deepEqual(cinatraOf(parts[WRITE_STEP]).publishRows, ROWS);
+test("the publish card shows the site, the node id, the current title and the requested change", () => {
+  const rows = cinatraOf(parts[WRITE_STEP]).publishRows;
+  assert.deepEqual(rows, ROWS);
   const inputs = Object.fromEntries(parts[WRITE_STEP].inputs.map((input) => [input.title, input]));
   for (const row of ROWS) {
     assert.ok(has(inputs, row.input), `${row.input} is an input of the write step`);
     assert.ok(row.label.length >= 1 && row.label.length <= 60 && row.label === row.label.trim());
   }
-  // The list row reads a list of records; each column names a key of the record.
-  const proposed = inputs.proposedFields;
-  assert.equal(proposed.type, "array");
-  const keys = Object.keys(proposed.json_schema.items.properties);
-  for (const column of ROWS[3].columns) assert.ok(keys.includes(column.field), `${column.field} is a key of each record`);
+  assert.ok(rows.length <= 4, "the card holds at most four rows");
   assert.deepEqual(carriersOf("publishRows"), [WRITE_STEP], "no other component carries publishRows");
+});
+
+// Two nodes of one site can share a title, so the title alone does not name
+// the node the write reaches: the card shows the node id, the same value the
+// write step addresses.
+test("the card names the node by the id the write step writes to, next to its title", () => {
+  const rows = cinatraOf(parts[WRITE_STEP]).publishRows;
+  const at = (input) => rows.findIndex((row) => row.input === input);
+  assert.ok(at("nodeId") >= 0, "a row shows the node id");
+  assert.equal(at("title"), at("nodeId") + 1, "the title row follows the node id row");
+  const into = oas.data_flow_connections
+    .filter((edge) => edge.destination_node.$component_ref === WRITE_STEP && edge.destination_input === "nodeId")
+    .map((edge) => [edge.source_node.$component_ref, edge.source_output]);
+  assert.deepEqual(into, [["start", "nodeId"]], "the node id shown is the run's node id");
+  assert.ok(parts[WRITE_STEP].data.user.includes("- nodeId: {{ nodeId }}"), "the write step gets that node id");
+  assert.ok(
+    /drupal_node_create_draft_revision with instanceId \+ nodeId/.test(parts[WRITE_STEP].data.system),
+    "the write addresses the node by that id",
+  );
+});
+
+test("before any site write, the write step reads the node again and writes nothing when it changed during the review", () => {
+  const into = (input) =>
+    oas.data_flow_connections
+      .filter((edge) => edge.destination_node.$component_ref === WRITE_STEP && edge.destination_input === input)
+      .map((edge) => [edge.source_node.$component_ref, edge.source_output]);
+  assert.deepEqual(into("nodeChanged"), [["read_node", "nodeChanged"]], "the change time the review was based on comes from the read step");
+  assert.deepEqual(into("nodeStatus"), [["read_node", "nodeStatus"]]);
+  assert.ok(parts[WRITE_STEP].data.user.includes("- nodeChanged: {{ nodeChanged }}"));
+  const system = parts[WRITE_STEP].data.system;
+  const rule = system.split("\n").find((line) => line.startsWith("11. ")) ?? "";
+  assert.ok(rule.includes("Before any site write (drupal_node_create_draft_revision, drupal_node_update or drupal_node_publish), read the node again with drupal_node_get"));
+  assert.ok(rule.includes("its status, read as the read step reads it, equals nodeStatus, nodeChanged is not empty, and this read's `changed` value (else its `revision_timestamp` value) as text EXACTLY equals nodeChanged"));
+  assert.ok(rule.includes("make NO site write and return the CHANGED-DURING-REVIEW REFUSAL RESULT"));
+  assert.ok(system.includes('CHANGED-DURING-REVIEW REFUSAL RESULT: {"nodeId":"7","changes":[],"reason":"The node changed on the site while the change was in review, so nothing was written; start a new run on the current node.","outcome":"refused"}'));
+  const step2 = system.split("STEP 2")[1]?.split("STEP 3")[0] ?? "";
+  assert.ok(step2.includes("first check that the node did not change during the review (Rule 11)"), "Step 2 checks before the write");
 });
 
 // A row shows one plain input of the step; the card has no literal or computed
@@ -131,7 +159,6 @@ test("the requested change row shows the value the write step decides a publish 
     system.includes("Only a node actually read as draft can use drupal_node_update"),
     "a direct field write reaches only a draft node",
   );
-  assert.ok(FIELDS_LABEL.includes("draft") && FIELDS_LABEL.includes("not live unless published"));
 });
 
 test("every other step that can reach a connector declares publishes false or is read only", () => {
@@ -154,6 +181,7 @@ test("an approved artifact review comes directly before the write, drawn by the 
   const review = parts[REVIEW_STEP];
   assert.equal(review.component_type, "InputMessageNode");
   const cinatra = cinatraOf(review);
+  assert.equal(cinatra.requiresApproval, true, "the review asks a person for the approval");
   assert.equal(cinatra.artifactReview?.targetsInput, "reviewTargets");
   assert.ok(review.inputs.some((input) => input.title === "reviewTargets"));
   for (const key of ["renderer", "inputRenderers", "gateRenderer"]) assert.ok(!has(cinatra, key), `the review declares no ${key}`);

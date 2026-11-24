@@ -105,6 +105,7 @@ const READ_SYSTEM = [
   "- `nodeStatus` \u2014 from this actual read only: `published` for status true, 1, \"1\" or \"published\"; `draft` for false, 0, \"0\", \"unpublished\" or \"draft\"; `unknown` otherwise (including any failed read). Never copy a caller hint.",
   "- `nodeBundle` \u2014 the actual read's `bundle` string, or the empty string when absent or the read failed.",
   "- `nodeLanguage` \u2014 the actual read's `langcode` only, when it is a non-empty language code of letters, digits, underscores or hyphens; otherwise the empty string. Never copy a caller hint or guess the site default. A failed read always returns the empty string.",
+  "- `nodeChanged` \u2014 the actual read's `changed` value as text (the time Drupal last saved the node), else its `revision_timestamp` value as text; the empty string when the read carries neither or the read failed. Never copy a caller hint.",
   "- `error` \u2014 `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.",
   "",
   "## How inputs arrive",
@@ -116,7 +117,7 @@ const READ_SYSTEM = [
   "- Never write to the site: this step only reads.",
   "- Never invent a field or a value: hand over only what the read answered.",
 ].join("\n");
-const READ_SYSTEM_SHA256 = "2d970a0c0edbf505f54227b3e8a3d63b2e615cb760daf88d4e63a80a6371b10b";
+const READ_SYSTEM_SHA256 = "e012bd97b19defe23b2520cc827b25d650d2c17e2fe3e03c87788c124d9eeb32";
 const READ_USER = [
   "Inputs:",
   "- instanceId: {{ instanceId }}",
@@ -151,6 +152,7 @@ const READ_STEP_REST = {
     { title: "nodeStatus", type: "string" },
     { title: "nodeBundle", type: "string" },
     { title: "nodeLanguage", type: "string" },
+    { title: "nodeChanged", type: "string" },
   ],
   metadata: { cinatra: { riskClass: "read_only", requiresApproval: false, packageName: "@cinatra-ai/drupal-agent" } },
 };
