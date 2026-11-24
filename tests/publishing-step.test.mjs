@@ -32,13 +32,15 @@ const REVIEW_STEP = "page_review_gate";
 const SITE_WRITE_TOOLS = ["drupal_node_publish", "drupal_node_update", "drupal_node_create_draft_revision"];
 const ACTION_KINDS = ["ApiNode", "AgentNode", "FlowNode", "ParallelFlowNode"];
 const NO_CONNECTOR_KINDS = ["StartNode", "EndNode", "InputMessageNode", "OutputMessageNode", "BranchingNode"];
+const REQUEST_LABEL = "Requested change (a request to publish makes the node live)";
+const FIELDS_LABEL = "Fields to write (saved as draft; not live unless published)";
 const ROWS = [
   { label: "Drupal site", input: "instanceId" },
-  { label: "Node", input: "nodeId" },
   { label: "Current title", input: "title" },
+  { label: REQUEST_LABEL, input: "instructions" },
   {
     kind: "list",
-    label: "Fields to write",
+    label: FIELDS_LABEL,
     input: "proposedFields",
     columns: [
       { label: "Field", field: "field" },
@@ -83,7 +85,7 @@ test("the write step is the one step that names a site write tool", () => {
   }
 });
 
-test("the publish card shows the site, the node, its current title and the fields to write", () => {
+test("the publish card shows the site, the current title, the requested change and the fields to write", () => {
   assert.deepEqual(cinatraOf(parts[WRITE_STEP]).publishRows, ROWS);
   const inputs = Object.fromEntries(parts[WRITE_STEP].inputs.map((input) => [input.title, input]));
   for (const row of ROWS) {
@@ -96,6 +98,40 @@ test("the publish card shows the site, the node, its current title and the field
   const keys = Object.keys(proposed.json_schema.items.properties);
   for (const column of ROWS[3].columns) assert.ok(keys.includes(column.field), `${column.field} is a key of each record`);
   assert.deepEqual(carriersOf("publishRows"), [WRITE_STEP], "no other component carries publishRows");
+});
+
+// A row shows one plain input of the step; the card has no literal or computed
+// value. So the rule the write step applies sits in the label, over the value
+// it decides on: the requested change is the only input that can lead to
+// drupal_node_publish, and a field write goes to a draft revision of a
+// published node, or to the unpublished node itself.
+test("the requested change row shows the value the write step decides a publish on, under a label that states it", () => {
+  const sourcesOf = (input) =>
+    oas.data_flow_connections
+      .filter((edge) => edge.destination_node.$component_ref === WRITE_STEP && edge.destination_input === input)
+      .map((edge) => [edge.source_node.$component_ref, edge.source_output]);
+  assert.deepEqual(sourcesOf("instructions"), [["start", "instructions"]], "the request comes only from the start input");
+  assert.deepEqual(sourcesOf("nodeStatus"), [["read_node", "nodeStatus"]], "the status comes only from the read step");
+  const { system, user } = parts[WRITE_STEP].data;
+  assert.ok(user.includes("- instructions: {{ instructions }}"), "the write step gets the request");
+  assert.ok(
+    system.includes("An explicit user publish request remains allowed through drupal_node_publish"),
+    "the write step publishes on an explicit request",
+  );
+  assert.ok(
+    system.includes("Publishing is never automatic: call drupal_node_publish only on an explicit user publish request"),
+    "the write step publishes on nothing else",
+  );
+  assert.ok(REQUEST_LABEL.includes("publish") && REQUEST_LABEL.includes("live"));
+  assert.ok(
+    system.includes("A published node is edited through ONE atomic call to drupal_node_create_draft_revision"),
+    "a field write to a published node goes to a draft revision",
+  );
+  assert.ok(
+    system.includes("Only a node actually read as draft can use drupal_node_update"),
+    "a direct field write reaches only a draft node",
+  );
+  assert.ok(FIELDS_LABEL.includes("draft") && FIELDS_LABEL.includes("not live unless published"));
 });
 
 test("every other step that can reach a connector declares publishes false or is read only", () => {

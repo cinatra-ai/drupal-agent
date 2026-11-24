@@ -1482,16 +1482,16 @@
               "input": "instanceId"
             },
             {
-              "label": "Node",
-              "input": "nodeId"
-            },
-            {
               "label": "Current title",
               "input": "title"
             },
             {
+              "label": "Requested change (a request to publish makes the node live)",
+              "input": "instructions"
+            },
+            {
               "kind": "list",
-              "label": "Fields to write",
+              "label": "Fields to write (saved as draft; not live unless published)",
               "input": "proposedFields",
               "columns": [
                 {
