@@ -8,6 +8,11 @@
 // write step and the settle step take the values only from that read. No value
 // reaches the write step from the compose step around the review.
 //
+// A change that changes nothing never reaches the review: `form_page` answers
+// `next: "no_change"`, the branch `route_change` takes the run past the filing
+// and the review to `no_change_outcome`, and the run ends completed with empty
+// `changes` and an empty reason, without a site call.
+//
 // When the reviewed change is not usable, the tool refuses: the step fails,
 // so the run ends with `reviewed_change_unavailable` and a message, and the
 // write step, the only step that names a site tool, never runs. The cases:
@@ -232,6 +237,17 @@ test("V7 an answer that names no approved revision of the filed artifact is refu
     "no target": answer([]),
     "no revision id": answer([{ artifactId: FILED.artifactId, representationRevisionId: "" }]),
     "no approval": JSON.stringify({ review: { decision: "rejected", targets: [FILED] } }),
+    "approved, but the decision is rejected": answer([FILED]).replace('"decision":"approved"', '"decision":"rejected"'),
+    "approved, but changes are requested": answer([FILED]).replace('"decision":"approved"', '"decision":"changes_requested"'),
+    "approved, but no decision": JSON.stringify({ approved: true, review: { envelopeVersion: 1, reviewTaskId: "t", comment: null, targets: [FILED] } }),
+    "a decision approved, but not approved": JSON.stringify({ approved: false, review: { envelopeVersion: 1, decision: "approved", targets: [FILED] } }),
+    "a decision approved, but no approval marker": JSON.stringify({ review: { envelopeVersion: 1, decision: "approved", targets: [FILED] } }),
+    "an approval marker that is text": answer([FILED]).replace('"approved":true', '"approved":"true"'),
+    "another envelope version": answer([FILED]).replace('"envelopeVersion":1', '"envelopeVersion":2'),
+    "no envelope version": JSON.stringify({ approved: true, review: { decision: "approved", targets: [FILED] } }),
+    "no targets": JSON.stringify({ approved: true, review: { envelopeVersion: 1, decision: "approved" } }),
+    "a target without its artifact": answer([{ representationRevisionId: SUCCESSOR }]),
+    "a target that is not an object": answer(["artifact-7"]),
     "not JSON": "approved",
     empty: "",
   };
@@ -262,7 +278,7 @@ test("V8 a read that fails, is cut short or answers another revision or artifact
   }
 });
 
-test("V9 a reviewed text that carries no values to write is refused", async () => {
+test("V9 a reviewed text that carries no values to write is refused (the flow files no such text: it ends a change of nothing before the filing, V11)", async () => {
   const { extensionTool } = await load();
   const cases = {
     "no writeFields": snapshot(undefined),
@@ -293,5 +309,60 @@ test("V10 a refusal makes no site call: the write step never runs after a failed
     assert.equal("completed_error_codes" in (parts[id].data ?? {}), false, `${id} lists no completed code`);
   }
   const { extensionTool } = await load();
-  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be form or read/);
+  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be form, unchanged or read/);
+});
+
+test("V11 a change of nothing ends the run completed, past the filing and the review, and makes no site call", async () => {
+  const BRANCH = "route_change";
+  const NO_CHANGE = "no_change_outcome";
+  const branch = parts[BRANCH];
+  assert.equal(branch.component_type, "BranchingNode");
+  assert.deepEqual(branch.branches, ["default", "no_change"]);
+  assert.deepEqual(branch.mapping, { no_change: "no_change" });
+  assert.deepEqual(sourcesOf(BRANCH, "next"), [["form_page", "next"]]);
+  const edges = oas.control_flow_connections.map((e) => [e.from_node.$component_ref, e.from_branch ?? null, e.to_node.$component_ref]);
+  assert.deepEqual(edges.filter(([from]) => from === "form_page"), [["form_page", null, BRANCH]]);
+  assert.deepEqual(edges.filter(([from]) => from === BRANCH), [[BRANCH, "default", "file_page"], [BRANCH, "no_change", NO_CHANGE]], "any other answer goes to the review");
+  assert.deepEqual(edges.filter(([from]) => from === NO_CHANGE), [[NO_CHANGE, null, "emit_output"]]);
+  assert.deepEqual(controlInto("file_page"), [BRANCH]);
+
+  // The no-change road: the branch, the no-change step, the output, the end. No filing, no review, no write.
+  const node = parts[NO_CHANGE];
+  assert.equal(node.component_type, "ApiNode");
+  assert.equal(node.data.input.name, TOOL_NAME);
+  assert.equal(node.data.input.input.op, "unchanged");
+  assert.equal(node.metadata.cinatra.riskClass, "read_only");
+  for (const tool of SITE_TOOLS) assert.equal(JSON.stringify(node).includes(tool), false, `the no-change step names no ${tool}`);
+  assert.deepEqual(sourcesOf(NO_CHANGE, "writeFields"), [[COMPOSE, "writeFields"]]);
+  assert.deepEqual(sourcesOf(NO_CHANGE, "nodeId"), [["start", "nodeId"]]);
+  for (const input of ["nodeId", "changes", "reason"]) {
+    assert.deepEqual(sourcesOf("emit_output", input), [[WRITE, input], [NO_CHANGE, input]], `the output's ${input} comes from the one step that ran`);
+    assert.deepEqual(sourcesOf("end", input), [[WRITE, input], [NO_CHANGE, input]], `the end's ${input} comes from the one step that ran`);
+  }
+
+  // What the steps answer for the compose step's answer to a request that changes nothing.
+  const { extensionTool } = await load();
+  const read = { title: JSON.stringify("Opening hours"), body: JSON.stringify("<p>Open</p>"), fieldValues: JSON.stringify([]), error: JSON.stringify({ code: "", message: "" }) };
+  const nothing = JSON.stringify({ fields: [], publish: false });
+  const formed = await extensionTool({ input: { op: "form", writeFields: nothing, address: JSON.stringify(""), ...read }, ports: {} });
+  assert.equal(formed.next, "no_change");
+  const outcome = await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: nothing, ...read }, ports: {} });
+  assert.deepEqual(outcome, { ok: true, nodeId: "7", changes: [], reason: "" });
+  const equal = JSON.stringify({ fields: [{ field: "body", value: "<p>Open</p>" }], publish: false });
+  assert.deepEqual(await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: equal, ...read }, ports: {} }), outcome);
+
+  // The no-change step refuses whatever would need the review: a change, a publish, a failed read.
+  const refused = {
+    "a change": JSON.stringify({ fields: [{ field: "body", value: "<p>Closed</p>" }], publish: false }),
+    "a publish": JSON.stringify({ fields: [], publish: true }),
+    "no values": JSON.stringify("x"),
+  };
+  for (const [name, writeFields] of Object.entries(refused)) {
+    await assert.rejects(extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields, ...read }, ports: {} }), refusedWithCode, name);
+  }
+  await assert.rejects(
+    extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: nothing, ...read, error: JSON.stringify({ code: "read-failed", message: "no" }) }, ports: {} }),
+    refusedWithCode,
+    "a failed read",
+  );
 });

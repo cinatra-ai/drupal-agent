@@ -91,6 +91,9 @@
       "$component_ref": "form_page"
     },
     {
+      "$component_ref": "route_change"
+    },
+    {
       "$component_ref": "file_page"
     },
     {
@@ -107,6 +110,9 @@
     },
     {
       "$component_ref": "settle_outcome"
+    },
+    {
+      "$component_ref": "no_change_outcome"
     },
     {
       "$component_ref": "emit_output"
@@ -148,12 +154,34 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "form_page_to_file_page",
+      "name": "form_page_to_route_change",
       "from_node": {
         "$component_ref": "form_page"
       },
       "to_node": {
+        "$component_ref": "route_change"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_change_to_file_page",
+      "from_node": {
+        "$component_ref": "route_change"
+      },
+      "from_branch": "default",
+      "to_node": {
         "$component_ref": "file_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_change_to_no_change_outcome",
+      "from_node": {
+        "$component_ref": "route_change"
+      },
+      "from_branch": "no_change",
+      "to_node": {
+        "$component_ref": "no_change_outcome"
       }
     },
     {
@@ -211,6 +239,16 @@
       "name": "settle_outcome_to_emit_output",
       "from_node": {
         "$component_ref": "settle_outcome"
+      },
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "no_change_outcome_to_emit_output",
+      "from_node": {
+        "$component_ref": "no_change_outcome"
       },
       "to_node": {
         "$component_ref": "emit_output"
@@ -983,6 +1021,174 @@
         "$component_ref": "settle_outcome"
       },
       "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "form_page_to_route_change_next",
+      "source_node": {
+        "$component_ref": "form_page"
+      },
+      "source_output": "next",
+      "destination_node": {
+        "$component_ref": "route_change"
+      },
+      "destination_input": "next"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_no_change_outcome_writeFields",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "writeFields",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "writeFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_title",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_body",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_fieldValues",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_error",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_nodeId",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_nodeId",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_changes",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_changes",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_reason",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_reason",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "reason"
     }
   ],
   "$referenced_components": {
@@ -1146,7 +1352,7 @@
       "data": {
         "agent_id": "drupal-content-editor",
         "toolbox_ids": [],
-        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill two declared output fields: `pageTitle` and `writeFields`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `writeFields` — the values the write step writes. The next step builds the page snapshot a person reviews from these values and the read, and after the review the write step writes exactly the reviewed values and no other. `writeFields.fields` has one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change. `writeFields.publish` is true only when the user's `instructions` explicitly ask to publish the node, and false otherwise; a reviewer finding is never a publish request.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `writeFields.fields` []; after a failed read `writeFields.publish` is false.\n- Keep every unchanged block of a value exactly as read. The review shows each changed block by its plain words, so a change that has no words of its own (only a link target, an attribute, a list type, a comment or an image) cannot be shown, and the next step refuses it before the review.\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is. `writeFields` carries the new title and the whole new body:\n\n--- example form begin ---\n{\"fields\":[{\"field\":\"title\",\"value\":\"Opening hours and holidays\"},{\"field\":\"body\",\"value\":\"<h2>When we open</h2><p>We open at eight on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: ten to two</li></ul>\"}],\"publish\":false}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
+        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill two declared output fields: `pageTitle` and `writeFields`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `writeFields` — the values the write step writes. The next step builds the page snapshot a person reviews from these values and the read, and after the review the write step writes exactly the reviewed values and no other. `writeFields.fields` has one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change. `writeFields.publish` is true only when the user's `instructions` explicitly ask to publish the node, and false otherwise; a reviewer finding is never a publish request.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `writeFields.fields` []; after a failed read `writeFields.publish` is false. When nothing needs to change and no publish is asked, the run ends without a review and nothing is written.\n- Keep every unchanged block of a value exactly as read, white space included. The review shows each changed block as its source text, markup and link targets included; a block that changes only in its white space cannot be shown, and the next step refuses it before the review.\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is. `writeFields` carries the new title and the whole new body:\n\n--- example form begin ---\n{\"fields\":[{\"field\":\"title\",\"value\":\"Opening hours and holidays\"},{\"field\":\"body\",\"value\":\"<h2>When we open</h2><p>We open at eight on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: ten to two</li></ul>\"}],\"publish\":false}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
         "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the two declared output fields as the system instructions state.",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
@@ -1447,6 +1653,12 @@
           "default": {}
         },
         {
+          "title": "next",
+          "type": "string",
+          "description": "no_change when the values change nothing and ask for no publish; review otherwise.",
+          "default": "review"
+        },
+        {
           "title": "ok",
           "type": "boolean",
           "default": false
@@ -1457,7 +1669,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent builds the page snapshot in code from the read and the values to write: the changed blocks the review shows are derived from those values. A change the snapshot cannot show, such as a change to markup alone, ends the run here and nothing is filed or written."
+          "description": "The agent builds the page snapshot in code from the read and the values to write: each changed block the review shows is its source text, derived from those values. A change the snapshot cannot show, such as a change of white space alone, ends the run here and nothing is filed or written. A change of nothing takes the run to its end without a review."
         }
       }
     },
@@ -2218,6 +2430,182 @@
           "type": "string"
         }
       ]
+    },
+    "route_change": {
+      "component_type": "BranchingNode",
+      "id": "route_change",
+      "name": "Branch on a change of nothing",
+      "metadata": {
+        "cinatra": {
+          "purpose": "route-a-change-of-nothing-past-the-filing-and-the-review"
+        }
+      },
+      "inputs": [
+        {
+          "title": "next",
+          "type": "string"
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "default",
+        "no_change"
+      ],
+      "mapping": {
+        "no_change": "no_change"
+      }
+    },
+    "no_change_outcome": {
+      "component_type": "ApiNode",
+      "id": "no_change_outcome",
+      "name": "End a change of nothing",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "unchanged",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "writeFields": "{# pyagentspec-input-hint (do not remove): {{ writeFields }} #}{{ writeFields | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "body",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "reason",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent ends a change of nothing: it checks again that the values change nothing and ask for no publish, and answers the node with no changes. Nothing is filed, reviewed or written."
+        }
+      }
     }
   }
 }

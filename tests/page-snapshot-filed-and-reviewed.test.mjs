@@ -4,7 +4,8 @@
 // proposed words, the application reviews it, and the write step follows the
 // review.
 //
-// The eight arms pin: the twelve steps on one road; the read step; the compose
+// The eight arms pin: the fourteen steps on one road, with one branch that
+// ends a change of nothing before the filing; the read step; the compose
 // step and the one example of the values it answers, and the form the code
 // builds from them; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
@@ -29,20 +30,40 @@ const PACKAGE_NAME = "@cinatra-ai/drupal-agent";
 const LLM_BRIDGE_PATH = "/api/llm-bridge";
 const PASSTHROUGH_PATH = "/api/agents/passthrough";
 
-/** The one road, step by step. */
+/** The steps, in road order. */
 const ROAD = [
   "start",
   "read_node",
   "compose_change",
   "form_page",
+  "route_change",
   "file_page",
   "gather_page_review",
   "page_review_gate",
   "read_reviewed_page",
   "load_node",
   "settle_outcome",
+  "no_change_outcome",
   "emit_output",
   "end",
+];
+
+/** The control edges: one road, and the branch that ends a change of nothing past the filing and the review. */
+const EDGES = [
+  ["start", "read_node", null],
+  ["read_node", "compose_change", null],
+  ["compose_change", "form_page", null],
+  ["form_page", "route_change", null],
+  ["route_change", "file_page", "default"],
+  ["route_change", "no_change_outcome", "no_change"],
+  ["file_page", "gather_page_review", null],
+  ["gather_page_review", "page_review_gate", null],
+  ["page_review_gate", "read_reviewed_page", null],
+  ["read_reviewed_page", "load_node", null],
+  ["load_node", "settle_outcome", null],
+  ["settle_outcome", "emit_output", null],
+  ["no_change_outcome", "emit_output", null],
+  ["emit_output", "end", null],
 ];
 
 /** The marker lines around the one example form of the compose step. */
@@ -225,7 +246,7 @@ const DRUPAL_FIXTURE_FORM = {
 
 // ---------------------------------------------------------------------------
 
-test("S1 the twelve steps stand on one road, the write step after the review", () => {
+test("S1 the fourteen steps stand on one road with one branch, the write step after the review", () => {
   assert.deepEqual(
     (oas.nodes ?? []).map((n) => n.$component_ref),
     ROAD,
@@ -235,9 +256,9 @@ test("S1 the twelve steps stand on one road, the write step after the review", (
   const edges = (oas.control_flow_connections ?? []).map((e) => [
     e.from_node.$component_ref,
     e.to_node.$component_ref,
+    e.from_branch ?? null,
   ]);
-  const expected = ROAD.slice(1).map((to, i) => [ROAD[i], to]);
-  assert.deepEqual(edges, expected, "eleven control edges, one road, in exactly this order");
+  assert.deepEqual(edges, EDGES, "fourteen control edges, in exactly this order");
   assert.equal(oas.start_node.$component_ref, "start");
   assert.ok(
     ROAD.indexOf("load_node") > ROAD.indexOf("page_review_gate") &&
@@ -348,8 +369,8 @@ test("S3 the compose step answers the values to write; the form the code builds 
   );
   assert.deepEqual(parsed.page.excerpts.map((e) => [e.region, e.position, e.proposed]), [
     ["title", 0, "Opening hours and holidays"],
-    ["body", 1, "We open at eight on weekdays."],
-    ["body", 3, "Saturday: ten to two"],
+    ["body", 1, "<p>We open at eight on weekdays.</p>"],
+    ["body", 3, "<li>Saturday: ten to two</li></ul>"],
   ]);
 
   const fixture = parseCmsPage(JSON.stringify(DRUPAL_FIXTURE_FORM));

@@ -52,8 +52,15 @@ The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts
 ## The write takes only the reviewed change (cinatra-ai/cinatra#3745)
 
 The flow is `start` → `read_node` → `compose_change` → `form_page` →
-`file_page` → `gather_page_review` → `page_review_gate` → `read_reviewed_page`
-→ `load_node` → `settle_outcome` → `emit_output` → `end`.
+`route_change` → `file_page` → `gather_page_review` → `page_review_gate` →
+`read_reviewed_page` → `load_node` → `settle_outcome` → `emit_output` → `end`.
+
+A change of nothing (no values, or values equal to the read, and no publish)
+is not filed and not reviewed: `form_page` answers `next: "no_change"`, the
+branch `route_change` takes the run to `no_change_outcome` (the
+`reviewed_change` tool, `op: unchanged`, which checks that again) →
+`emit_output` → `end`. The run completes with empty `changes` and an empty
+reason, and no Drupal call is made. Any other `next` goes to the review.
 
 `compose_change` answers only the values to write, `writeFields`: `fields`
 (one `{field, value}` per changed field, the complete new value) and `publish`
@@ -85,20 +92,29 @@ read.
 ### What the reviewer sees of the values to write
 
 The display (`@cinatra-ai/website-artifacts`, `src/cms-page-view.tsx:89,177`)
-draws only `page` and the `excerpts`, each as plain words (`published` against
-`proposed`); it never draws `writeFields`, and its frame shows the live page,
-not the change. Its parser drops a block whose two sides hold the same words
-(`src/cms-page-model.ts:189`). So `pageExcerpts` splits each value into its
-top-level blocks (headings, paragraphs, each list item with its list's opening
-tag, any other element, comments, runs of text with inline elements), aligns
-the old and new blocks, and shows each changed block's plain words. It refuses,
-before anything is filed, a change the display cannot show: a block whose
-markup changed but whose words did not (a link target, an attribute, a list
-type, a paragraph made a heading, a comment), and a written block without
-words (an image, an empty script). What is still not visible: the markup inside
-a block whose words do change (a link target, attributes, inline tags, and
-script text shown as words). Showing it needs the display to draw the source of
-each changed block, or `writeFields` itself.
+draws only `page` and the `excerpts` (`published` against `proposed`), as plain
+text; it never draws `writeFields`. So `pageExcerpts` splits each value into
+its top-level blocks (headings, paragraphs, each list item, the first with the
+list's opening tag and the last with its closing tag, any other element,
+comments, runs of text with inline elements); white space between blocks
+belongs to the block before it, and the blocks joined are the value byte for
+byte. It compares the old and new blocks byte for byte and shows each changed
+block as its SOURCE text on both sides: a changed link target, attribute, tag,
+comment, image or script is drawn as text whether or not the words change, and
+every block not shown is byte for byte the read.
+
+It refuses, before anything is filed, what the display cannot show: a block
+(or the title) whose two sides differ only in white space, because the
+display's parser rejects a block whose two sides hold the same words
+(`src/cms-page-model.ts:189`), and more than 200 changed blocks
+(`CMS_PAGE_MAX_EXCERPTS`). What is still not exact: the display draws a run of
+white space inside a shown block as one space, so the exact white space of a
+changed block (two spaces, a tab or a line break, which matters only inside
+`pre`, raw-text elements or attribute values) is not distinguishable.
+
+The read-back accepts the review's answer only when all its signals agree:
+`approved` is true, `review.decision` is `approved`, `review.envelopeVersion`
+is 1, and `review.targets` names exactly one revision of the filed artifact.
 
 ## The node check before each write
 
