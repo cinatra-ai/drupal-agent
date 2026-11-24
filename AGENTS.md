@@ -51,15 +51,18 @@ The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts
 
 ## The write takes only the reviewed change (cinatra-ai/cinatra#3745)
 
-The flow is `start` → `read_node` → `compose_change` → `file_page` →
-`gather_page_review` → `page_review_gate` → `read_reviewed_page` → `load_node`
-→ `settle_outcome` → `emit_output` → `end`.
+The flow is `start` → `read_node` → `compose_change` → `form_page` →
+`file_page` → `gather_page_review` → `page_review_gate` → `read_reviewed_page`
+→ `load_node` → `settle_outcome` → `emit_output` → `end`.
 
-`compose_change` files the values to write in the page snapshot itself:
-`pageForm.writeFields` holds `fields` (one `{field, value}` per changed field,
-the complete new value) and `publish` (true only on the user's explicit request
-to publish). It answers no other value: nothing reaches `load_node` from the
-compose step around the review.
+`compose_change` answers only the values to write, `writeFields`: `fields`
+(one `{field, value}` per changed field, the complete new value) and `publish`
+(true only on the user's explicit request to publish). `form_page` calls the
+pack's `reviewed_change` tool (`op: form`), which builds the page snapshot in
+code: the page, `writeFields` and the changed blocks the display shows
+(`excerpts`), derived from `writeFields` and the read by one function,
+`pageExcerpts`. Nothing reaches `load_node` from the compose step around the
+review.
 
 After the review, `read_reviewed_page` calls the pack's `reviewed_change` tool
 (`cinatra/tools/reviewed-change.mjs`). The tool takes the revision the review's
@@ -74,10 +77,60 @@ asks for it; `settle_outcome` checks the outcome against `reviewedFields`.
 The tool refuses, so the run fails with `reviewed_change_unavailable` and a
 message and no Drupal call is made, when the answer names no approved revision
 of the filed artifact (another artifact, no target, no approval), when the read
-fails, is cut short or answers another revision or artifact, and when the text
-is not a Drupal page snapshot or carries no values to write. The re-read of the
-node before any site write, the `expectedFields` check of a published node and
-the node id on the publish card stay as they are.
+fails, is cut short or answers another revision or artifact, when the text
+is not a Drupal page snapshot or carries no values to write, and when the text
+shows other blocks than the ones `pageExcerpts` derives from its values and the
+read.
+
+### What the reviewer sees of the values to write
+
+The display (`@cinatra-ai/website-artifacts`, `src/cms-page-view.tsx:89,177`)
+draws only `page` and the `excerpts`, each as plain words (`published` against
+`proposed`); it never draws `writeFields`, and its frame shows the live page,
+not the change. Its parser drops a block whose two sides hold the same words
+(`src/cms-page-model.ts:189`). So `pageExcerpts` splits each value into its
+top-level blocks (headings, paragraphs, each list item with its list's opening
+tag, any other element, comments, runs of text with inline elements), aligns
+the old and new blocks, and shows each changed block's plain words. It refuses,
+before anything is filed, a change the display cannot show: a block whose
+markup changed but whose words did not (a link target, an attribute, a list
+type, a paragraph made a heading, a comment), and a written block without
+words (an image, an empty script). What is still not visible: the markup inside
+a block whose words do change (a link target, attributes, inline tags, and
+script text shown as words). Showing it needs the display to draw the source of
+each changed block, or `writeFields` itself.
+
+## The node check before each write
+
+No pack tool can read the site (a pack tool gets only the data, artifact,
+review, clock and object ports), so the check is in `load_node`'s Rule 11:
+
+1. The baseline is `nodeStatus` and `nodeChanged` from `read_node`.
+2. Right before each site write, `drupal_node_get`; the status and the change
+   time must equal the baseline.
+3. When a second write follows (`drupal_node_publish` after
+   `drupal_node_update`, e.g. "change the title and publish"), the first write
+   changed the change time itself. The update answers no change time to rely
+   on (it returns the `mcp_update_content` answer as it is), so the node is read
+   once right after the update: still draft, the written fields read back as
+   written. That read is the baseline for the check before the publish.
+4. A failed check before the first write says nothing was written; after a
+   saved field write the reason names the saved fields and says the node was
+   not published.
+
+The check is not atomic. `drupal_node_update` takes `instanceId`, `nodeId` and
+`fields`, and `drupal_node_publish` `instanceId` and `nodeId`
+(drupal-mcp-connector `src/mcp/handlers.ts:87-96`; an unknown key is stripped).
+Neither carries an expected version to `mcp_update_content` or
+`mcp_publish_content` (`:577`, `:724`). Two windows remain: a save between a
+check and its write, and a save between the update and the read right after it
+(it then becomes the baseline; the read-back of the written fields catches a
+change to those fields only). Closing them needs, on both tools, an
+`expectedChanged` or `expectedRevisionId` argument the site checks in the same
+save (as the module writer does for `drupal_node_create_draft_revision` with
+`expected_default_revision_id`, `:650`), and the update's answer to carry the
+saved node's `changed` and revision id. `drupal_node_create_draft_revision`
+keeps its `expectedFields` check (`:636`).
 
 ## Draft revision workflow (critical)
 

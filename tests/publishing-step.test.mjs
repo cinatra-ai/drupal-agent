@@ -10,9 +10,10 @@
 // earlier in the same run; `page_review_gate` is that review. Between the
 // review and the write, `read_reviewed_page` reads back the revision the
 // person approved, and the write step writes only the values of that text. The card names the node by its site, its id and its
-// title: two nodes of one site can share a title, never an id. Before any
-// site write, the write step reads the node again and writes nothing when it
-// changed during the review.
+// title: two nodes of one site can share a title, never an id. Before each
+// site write, the write step reads the node again and writes nothing more when
+// it changed since the read the review was based on, or since its own first
+// write.
 //
 // These cases restate the readers' rules over this flow: the application's
 // compiler (cinatra-ai/cinatra, packages/agents/src/oas-compiler.ts,
@@ -112,7 +113,11 @@ test("the card names the node by the id the write step writes to, next to its ti
   );
 });
 
-test("before any site write, the write step reads the node again and writes nothing when it changed during the review", () => {
+// A model executes these rules, and no pack tool can read the site (a pack
+// tool gets only the data, artifact, review, clock and object ports), so the
+// check stays in the write step's rules. These cases check the rule text and
+// the order it prescribes; they do not run the step.
+test("before each site write, the write step reads the node again and compares it with the baseline", () => {
   const into = (input) =>
     oas.data_flow_connections
       .filter((edge) => edge.destination_node.$component_ref === WRITE_STEP && edge.destination_input === input)
@@ -122,12 +127,47 @@ test("before any site write, the write step reads the node again and writes noth
   assert.ok(parts[WRITE_STEP].data.user.includes("- nodeChanged: {{ nodeChanged }}"));
   const system = parts[WRITE_STEP].data.system;
   const rule = system.split("\n").find((line) => line.startsWith("11. ")) ?? "";
-  assert.ok(rule.includes("Before any site write (drupal_node_create_draft_revision, drupal_node_update or drupal_node_publish), read the node again with drupal_node_get"));
-  assert.ok(rule.includes("its status, read as the read step reads it, equals nodeStatus, nodeChanged is not empty, and this read's `changed` value (else its `revision_timestamp` value) as text EXACTLY equals nodeChanged"));
-  assert.ok(rule.includes("make NO site write and return the CHANGED-DURING-REVIEW REFUSAL RESULT"));
+  assert.ok(rule.includes("At the start the baseline is nodeStatus and nodeChanged"));
+  assert.ok(rule.includes("(a) Immediately before each site write (drupal_node_create_draft_revision, drupal_node_update or drupal_node_publish), read the node again with drupal_node_get"));
+  assert.ok(rule.includes("its status, read as the read step reads it, equals the baseline status, the baseline change time is not empty, and this read's `changed` value (else its `revision_timestamp` value) as text EXACTLY equals the baseline change time"));
   assert.ok(system.includes('CHANGED-DURING-REVIEW REFUSAL RESULT: {"nodeId":"7","changes":[],"reason":"The node changed on the site while the change was in review, so nothing was written; start a new run on the current node.","outcome":"refused"}'));
   const step2 = system.split("STEP 2")[1]?.split("STEP 3")[0] ?? "";
-  assert.ok(step2.includes("first check that the node did not change during the review (Rule 11)"), "Step 2 checks before the write");
+  assert.ok(step2.includes("check the node against the baseline (Rule 11)"), "Step 2 checks before the write");
+});
+
+// "Change the title and publish" on a draft node writes twice. The first write
+// changes the node's change time itself, so the check before the publish
+// compares with the node as that write left it, read right after the write.
+test("two writes: the check before the publish compares with the node as read right after the field write", () => {
+  const system = parts[WRITE_STEP].data.system;
+  const rule = system.split("\n").find((line) => line.startsWith("11. ")) ?? "";
+  const a = rule.indexOf("(a) ");
+  const b = rule.indexOf("(b) ");
+  const c = rule.indexOf("(c) ");
+  assert.ok(a >= 0 && b > a && c > b, "the rule states (a), (b) and (c) in this order");
+  const second = rule.slice(b, c);
+  assert.ok(second.includes("right after the first write succeeded, and before any other call, read the node once with drupal_node_get"));
+  assert.ok(second.includes("After drupal_node_update its status must still be draft and every field you wrote must read back exactly as written"));
+  assert.ok(second.includes("This read's status and change time are then the baseline for the check in (a) before the second write"));
+  const refusal = rule.slice(c);
+  assert.ok(refusal.includes("Before the first write: the CHANGED-DURING-REVIEW REFUSAL RESULT"));
+  assert.ok(refusal.includes("After a saved field write: the SAVED-NOT-PUBLISHED REFUSAL RESULT, naming the fields that were saved; never say that nothing was written"));
+  assert.ok(system.includes('SAVED-NOT-PUBLISHED REFUSAL RESULT: {"nodeId":"7","changes":[],"reason":"The title was saved on the draft node; the node was not published, because it changed after the save; check it on the site before you publish it.","outcome":"refused"}'));
+  const step2 = system.split("STEP 2")[1]?.split("STEP 3")[0] ?? "";
+  const update = step2.indexOf("drupal_node_update once");
+  assert.ok(update >= 0 && update < step2.indexOf("read it again at once (Rule 11 (b))"), "Step 2 reads again after the field write");
+});
+
+// The site tools carry no expected version: drupal_node_update takes instanceId,
+// nodeId and fields, drupal_node_publish instanceId and nodeId (the connector's
+// src/mcp/handlers.ts nodeUpdateSchema and nodeGetSchema). The check and the
+// write stay two calls; the rule says so and asks for no invented argument.
+test("the check and the write are two calls: the rule says so and adds no version argument", () => {
+  const system = parts[WRITE_STEP].data.system;
+  const rule = system.split("\n").find((line) => line.startsWith("13. ")) ?? "";
+  assert.ok(rule.includes("drupal_node_update and drupal_node_publish take no expected version"));
+  assert.ok(rule.includes("Make each write the very next call after its check"));
+  assert.ok(rule.includes("never add a version argument"));
 });
 
 // A row shows one plain input of the step; the card has no literal or computed

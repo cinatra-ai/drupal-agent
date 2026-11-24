@@ -59,14 +59,18 @@ function answer(targets, extra = {}) {
   });
 }
 
-/** A page snapshot text as the compose step files it. */
+/** The block the review shows for the title change, and none without it. */
+const TITLE_EXCERPT = { region: "title", position: 0, kind: "heading", level: 1, published: "Opening hours", proposed: "Opening hours and holidays" };
+
+/** A page snapshot text as the form step files it. */
 function snapshot(writeFields, over = {}) {
+  const changesTitle = Array.isArray(writeFields?.fields) && writeFields.fields.some((f) => f?.field === "title");
   return JSON.stringify({
     cinatraCmsPage: 1,
     system: "drupal",
     page: { title: "Opening hours", address: null, cmsAddress: null },
     writeFields,
-    excerpts: [{ region: "title", position: 0, kind: "heading", level: 1, published: "Opening hours", proposed: "Opening hours and holidays" }],
+    excerpts: changesTitle ? [TITLE_EXCERPT] : [],
     ...over,
   });
 }
@@ -99,11 +103,14 @@ const readOf = (text, over = {}) => (request) => ({
   ...over,
 });
 
-/** The call as the flow renders it: each value the flow sends as JSON text. */
+/** The call as the flow renders it: each value the flow sends as JSON text, with the read the review was based on. */
 const call = (reviewAnswer, artifactId = FILED.artifactId) => ({
   op: "read",
   artifactId,
   reviewAnswer: JSON.stringify(reviewAnswer),
+  title: JSON.stringify("Opening hours"),
+  body: JSON.stringify(""),
+  fieldValues: JSON.stringify([]),
 });
 
 async function load() {
@@ -165,11 +172,14 @@ test("V3 every value the write step and the settle step get of the change traces
   assert.ok(system.includes("The values you write come only from the reviewed revision"));
 });
 
-test("V4 the compose step files the values to write in the page form itself", () => {
-  for (const [node, list] of [[COMPOSE, "outputs"], ["file_page", "inputs"]]) {
-    const form = parts[node][list].find((x) => x.title === "pageForm").json_schema;
-    const writeFields = form.properties.writeFields;
-    assert.ok(writeFields, `${node} declares pageForm.writeFields`);
+test("V4 the compose step answers the values to write, and the filed page form carries them", () => {
+  const schemas = [
+    ["compose_change.writeFields", parts[COMPOSE].outputs.find((x) => x.title === "writeFields").json_schema],
+    ["form_page.pageForm", parts.form_page.outputs.find((x) => x.title === "pageForm").json_schema.properties.writeFields],
+    ["file_page.pageForm", parts.file_page.inputs.find((x) => x.title === "pageForm").json_schema.properties.writeFields],
+  ];
+  for (const [name, writeFields] of schemas) {
+    assert.ok(writeFields, `${name} declares writeFields`);
     assert.deepEqual(Object.keys(writeFields.properties).sort(), ["fields", "publish"]);
     assert.equal(writeFields.properties.publish.type, "boolean");
     assert.deepEqual(Object.keys(writeFields.properties.fields.items.properties).sort(), ["field", "value"]);
@@ -178,9 +188,9 @@ test("V4 the compose step files the values to write in the page form itself", ()
   assert.ok(system.includes("`writeFields`"));
   assert.ok(system.includes("reviewer finding is never a publish request"));
   const example = system.split("--- example form begin ---")[1].split("--- example form end ---")[0];
-  const form = JSON.parse(example.trim());
-  assert.ok(Array.isArray(form.writeFields.fields) && form.writeFields.fields.length > 0);
-  assert.equal(form.writeFields.publish, false);
+  const writeFields = JSON.parse(example.trim());
+  assert.ok(Array.isArray(writeFields.fields) && writeFields.fields.length > 0);
+  assert.equal(writeFields.publish, false);
 });
 
 test("V5 the tool reads the APPROVED revision the review's answer names, and answers its values", async () => {
@@ -283,5 +293,5 @@ test("V10 a refusal makes no site call: the write step never runs after a failed
     assert.equal("completed_error_codes" in (parts[id].data ?? {}), false, `${id} lists no completed code`);
   }
   const { extensionTool } = await load();
-  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be read/);
+  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be form or read/);
 });

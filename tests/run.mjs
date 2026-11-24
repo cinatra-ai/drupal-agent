@@ -25,3 +25,4 @@ import "./package-version.test.mjs";
 import "./read-failure-ends-run.test.mjs";
 import "./publishing-step.test.mjs";
 import "./reviewed-change-read.test.mjs";
+import "./page-form.test.mjs";

@@ -4,8 +4,9 @@
 // proposed words, the application reviews it, and the write step follows the
 // review.
 //
-// The eight arms pin: the eleven steps on one road; the read step; the compose
-// step and the one example form it carries; the filing step and the type the
+// The eight arms pin: the twelve steps on one road; the read step; the compose
+// step and the one example of the values it answers, and the form the code
+// builds from them; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
 // step after the review and the read of the reviewed revision; the declared module; and the end node binding nothing.
 //
@@ -33,6 +34,7 @@ const ROAD = [
   "start",
   "read_node",
   "compose_change",
+  "form_page",
   "file_page",
   "gather_page_review",
   "page_review_gate",
@@ -223,7 +225,7 @@ const DRUPAL_FIXTURE_FORM = {
 
 // ---------------------------------------------------------------------------
 
-test("S1 the eleven steps stand on one road, the write step after the review", () => {
+test("S1 the twelve steps stand on one road, the write step after the review", () => {
   assert.deepEqual(
     (oas.nodes ?? []).map((n) => n.$component_ref),
     ROAD,
@@ -235,7 +237,7 @@ test("S1 the eleven steps stand on one road, the write step after the review", (
     e.to_node.$component_ref,
   ]);
   const expected = ROAD.slice(1).map((to, i) => [ROAD[i], to]);
-  assert.deepEqual(edges, expected, "ten control edges, one road, in exactly this order");
+  assert.deepEqual(edges, expected, "eleven control edges, one road, in exactly this order");
   assert.equal(oas.start_node.$component_ref, "start");
   assert.ok(
     ROAD.indexOf("load_node") > ROAD.indexOf("page_review_gate") &&
@@ -283,7 +285,7 @@ test("S2 the read step reads the node and composes its public address", () => {
   assert.deepEqual(memberKeys(error.json_schema), ["code", "message"]);
 });
 
-test("S3 the compose step answers the page form with the values to write, with one example form the display parses", () => {
+test("S3 the compose step answers the values to write; the form the code builds from its example parses in the display", async () => {
   const node = part("compose_change");
   assert.equal(node.component_type, "ApiNode");
   assert.ok(node.url.includes(LLM_BRIDGE_PATH), "the compose step is a bridge step");
@@ -295,48 +297,65 @@ test("S3 the compose step answers the page form with the values to write, with o
     assertEdge("compose_change", output, "read_node", output);
   }
 
-  assert.deepEqual(titles(node.outputs), ["pageTitle", "pageForm"]);
+  assert.deepEqual(titles(node.outputs), ["pageTitle", "writeFields"]);
   assert.equal(declared(node.outputs, "pageTitle").type, "string");
-  const pageForm = declared(node.outputs, "pageForm");
-  assert.equal(pageForm.type, "object");
-  const form = pageForm.json_schema;
-  assert.deepEqual(memberKeys(form), ["cinatraCmsPage", "excerpts", "page", "system", "writeFields"]);
-  assert.deepEqual(memberKeys(form.properties.writeFields), ["fields", "publish"]);
-  const writeList = form.properties.writeFields.properties.fields;
+  const writeFields = declared(node.outputs, "writeFields");
+  assert.equal(writeFields.type, "object");
+  assert.deepEqual(memberKeys(writeFields.json_schema), ["fields", "publish"]);
+  const writeList = writeFields.json_schema.properties.fields;
   assert.equal(writeList.type, "array");
   assert.deepEqual(memberKeys(writeList.items), ["field", "value"]);
-  assert.equal(form.properties.writeFields.properties.publish.type, "boolean");
+  assert.equal(writeFields.json_schema.properties.publish.type, "boolean");
+
+  const form = declared(part("form_page").outputs, "pageForm").json_schema;
+  assert.deepEqual(memberKeys(form), ["cinatraCmsPage", "excerpts", "page", "system", "writeFields"]);
   assert.deepEqual(memberKeys(form.properties.page), ["address", "cmsAddress", "title"]);
-  assert.equal(form.properties.excerpts.type, "array");
-  assert.deepEqual(memberKeys(form.properties.excerpts.items), [
-    "kind",
-    "level",
-    "position",
-    "proposed",
-    "published",
-    "region",
-  ]);
+  assert.deepEqual(memberKeys(form.properties.excerpts.items), ["kind", "level", "position", "proposed", "published", "region"]);
 
   const system = node.data.system;
-  assert.equal(system.split(EXAMPLE_BEGIN).length, 2, "exactly one example form");
-  assert.equal(system.split(EXAMPLE_END).length, 2, "exactly one end of the example form");
-  const example = system.slice(system.indexOf(EXAMPLE_BEGIN) + EXAMPLE_BEGIN.length, system.indexOf(EXAMPLE_END));
-  const parsed = parseCmsPage(example.trim());
-  assert.equal(parsed.ok, true, `the example form parses (${parsed.reason ?? "ok"})`);
+  assert.equal(system.split(EXAMPLE_BEGIN).length, 2, "exactly one example");
+  assert.equal(system.split(EXAMPLE_END).length, 2, "exactly one end of the example");
+  const example = JSON.parse(system.slice(system.indexOf(EXAMPLE_BEGIN) + EXAMPLE_BEGIN.length, system.indexOf(EXAMPLE_END)).trim());
+
+  // The read the example changes, and the form the code builds from both.
+  const { extensionTool } = await import("../cinatra/tools/reviewed-change.mjs");
+  const read = {
+    title: "Opening hours",
+    body: "<h2>When we open</h2><p>We open at nine on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: closed</li></ul>",
+    address: "https://www.example.org/node/7",
+  };
+  const { pageForm } = await extensionTool({
+    input: {
+      op: "form",
+      writeFields: JSON.stringify(example),
+      title: JSON.stringify(read.title),
+      body: JSON.stringify(read.body),
+      fieldValues: JSON.stringify([]),
+      address: JSON.stringify(read.address),
+      error: JSON.stringify({ code: "", message: "" }),
+    },
+    ports: {},
+  });
+  const parsed = parseCmsPage(JSON.stringify(pageForm));
+  assert.equal(parsed.ok, true, `the built form parses (${parsed.reason ?? "ok"})`);
   assert.equal(parsed.page.system, "drupal");
-  const raw = JSON.parse(example.trim());
-  assert.equal("readAt" in raw, false, "the example form carries no readAt key");
-  assert.equal(raw.page.cmsAddress, `${raw.page.address}/edit`, "the edit address is the address plus /edit");
+  assert.equal("readAt" in pageForm, false, "the form carries no readAt key");
+  assert.equal(pageForm.page.cmsAddress, `${pageForm.page.address}/edit`, "the edit address is the address plus /edit");
   assert.deepEqual(
     parsed.page.excerpts[0],
-    { region: "title", position: 0, kind: "heading", level: 1, published: raw.excerpts[0].published, proposed: raw.excerpts[0].proposed },
+    { region: "title", position: 0, kind: "heading", level: 1, published: "Opening hours", proposed: "Opening hours and holidays" },
     "the title is one heading block of level 1 at position 0",
   );
+  assert.deepEqual(parsed.page.excerpts.map((e) => [e.region, e.position, e.proposed]), [
+    ["title", 0, "Opening hours and holidays"],
+    ["body", 1, "We open at eight on weekdays."],
+    ["body", 3, "Saturday: ten to two"],
+  ]);
 
   const fixture = parseCmsPage(JSON.stringify(DRUPAL_FIXTURE_FORM));
   assert.equal(fixture.ok, true, "the display's Drupal fixture form parses");
   assert.equal(fixture.page.system, "drupal");
-  assert.deepEqual(parseCmsPage(JSON.stringify({ ...raw, excerpts: [] })), { ok: false, reason: "no-excerpts" });
+  assert.deepEqual(parseCmsPage(JSON.stringify({ ...pageForm, excerpts: [] })), { ok: false, reason: "no-excerpts" });
 });
 
 test("S4 the filing step files the page form as the display's type, and the pack declares it produces that type", () => {
@@ -355,7 +374,7 @@ test("S4 the filing step files the page form as the display's type, and the pack
   assert.equal(node.data.agent_run_id, "{{ cinatra_run_id }}");
   assertEdge("file_page", "pageTitle", "read_node", "title");
   assert.equal(edgesInto("file_page", "pageTitle").length, 1, "the filed title has one source, the read step");
-  assertEdge("file_page", "pageForm", "compose_change", "pageForm");
+  assertEdge("file_page", "pageForm", "form_page", "pageForm");
   assertEdge("file_page", "cinatra_run_id", "start", "cinatra_run_id");
   assert.deepEqual(titles(node.outputs), ["artifactId", "representationRevisionId"]);
   assert.equal(node.metadata.cinatra.riskClass, "write");

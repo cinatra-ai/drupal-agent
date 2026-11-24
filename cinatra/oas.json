@@ -88,6 +88,9 @@
       "$component_ref": "compose_change"
     },
     {
+      "$component_ref": "form_page"
+    },
+    {
       "$component_ref": "file_page"
     },
     {
@@ -135,9 +138,19 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "compose_change_to_file_page",
+      "name": "compose_change_to_form_page",
       "from_node": {
         "$component_ref": "compose_change"
+      },
+      "to_node": {
+        "$component_ref": "form_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "form_page_to_file_page",
+      "from_node": {
+        "$component_ref": "form_page"
       },
       "to_node": {
         "$component_ref": "file_page"
@@ -337,6 +350,90 @@
     },
     {
       "component_type": "DataFlowEdge",
+      "name": "compose_change_to_form_page_writeFields",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "writeFields",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "writeFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_title",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_body",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_fieldValues",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_address",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "address",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "address"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_error",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_form_page_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
       "name": "read_node_to_file_page_pageTitle",
       "source_node": {
         "$component_ref": "read_node"
@@ -349,9 +446,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "compose_change_to_file_page_pageForm",
+      "name": "form_page_to_file_page_pageForm",
       "source_node": {
-        "$component_ref": "compose_change"
+        "$component_ref": "form_page"
       },
       "source_output": "pageForm",
       "destination_node": {
@@ -466,6 +563,42 @@
         "$component_ref": "read_reviewed_page"
       },
       "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_title",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_body",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_fieldValues",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "fieldValues"
     },
     {
       "component_type": "DataFlowEdge",
@@ -1013,8 +1146,8 @@
       "data": {
         "agent_id": "drupal-content-editor",
         "toolbox_ids": [],
-        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill two declared output fields: `pageTitle` and `pageForm`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `pageForm` — the page snapshot's content form, by the rules below, with the values to write in `writeFields`.\n\n## The page form\n\n- `cinatraCmsPage` is 1 and `system` is \"drupal\".\n- `page.title` is the title as read. `page.address` is the `address` the read step answered, or null when it is empty. `page.cmsAddress` is that address followed by `/edit`, or null when the address is empty. The form has no `readAt` key.\n- `writeFields` holds the values the write step writes, and the page form is the only place they are given: after the person reviewed the filed page snapshot, the write step reads it back and writes exactly these values and no other. `writeFields.fields` has one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change. `writeFields.publish` is true only when the user's `instructions` explicitly ask to publish the node, and false otherwise; a reviewer finding is never a publish request.\n- `excerpts` lists the changed blocks in page order, ONE entry per changed block and none for an unchanged one. `region` is the field the block lives in (`title`, `body` or the `field_` name).\n- The title is one block: region `title`, position 0, kind `heading`, level 1.\n- The value of every other field is split into its top-level blocks in document order by ONE rule: a heading element h1 to h6 is kind `heading` with its level; a paragraph is kind `paragraph`; every item of a list is its own block of kind `list-item`; a value without markup is one paragraph block at position 0. `level` is null for a block that is not a heading.\n- `position` is the block's zero-based index inside its region.\n- `published` is the block's plain words as read and `proposed` its plain words after the change, with every markup tag removed. An added block has `published` '' and a removed block `proposed` ''.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `excerpts` [] and `writeFields.fields` []; after a failed read `writeFields.publish` is false.\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is. `writeFields` carries the new title and the whole new body:\n\n--- example form begin ---\n{\"cinatraCmsPage\":1,\"system\":\"drupal\",\"page\":{\"title\":\"Opening hours\",\"address\":\"https://www.example.org/node/7\",\"cmsAddress\":\"https://www.example.org/node/7/edit\"},\"writeFields\":{\"fields\":[{\"field\":\"title\",\"value\":\"Opening hours and holidays\"},{\"field\":\"body\",\"value\":\"<h2>When we open</h2><p>We open at eight on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: ten to two</li></ul>\"}],\"publish\":false},\"excerpts\":[{\"region\":\"title\",\"position\":0,\"kind\":\"heading\",\"level\":1,\"published\":\"Opening hours\",\"proposed\":\"Opening hours and holidays\"},{\"region\":\"body\",\"position\":1,\"kind\":\"paragraph\",\"level\":null,\"published\":\"We open at nine on weekdays.\",\"proposed\":\"We open at eight on weekdays.\"},{\"region\":\"body\",\"position\":3,\"kind\":\"list-item\",\"level\":null,\"published\":\"Saturday: closed\",\"proposed\":\"Saturday: ten to two\"}]}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
-        "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the three declared output fields as the system instructions state.",
+        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill two declared output fields: `pageTitle` and `writeFields`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `writeFields` — the values the write step writes. The next step builds the page snapshot a person reviews from these values and the read, and after the review the write step writes exactly the reviewed values and no other. `writeFields.fields` has one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change. `writeFields.publish` is true only when the user's `instructions` explicitly ask to publish the node, and false otherwise; a reviewer finding is never a publish request.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `writeFields.fields` []; after a failed read `writeFields.publish` is false.\n- Keep every unchanged block of a value exactly as read. The review shows each changed block by its plain words, so a change that has no words of its own (only a link target, an attribute, a list type, a comment or an image) cannot be shown, and the next step refuses it before the review.\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is. `writeFields` carries the new title and the whole new body:\n\n--- example form begin ---\n{\"fields\":[{\"field\":\"title\",\"value\":\"Opening hours and holidays\"},{\"field\":\"body\",\"value\":\"<h2>When we open</h2><p>We open at eight on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: ten to two</li></ul>\"}],\"publish\":false}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
+        "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the two declared output fields as the system instructions state.",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -1080,6 +1213,147 @@
           "title": "pageTitle",
           "type": "string"
         },
+        {
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent"
+        }
+      }
+    },
+    "form_page": {
+      "component_type": "ApiNode",
+      "id": "form_page",
+      "name": "Build the page snapshot",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "form",
+            "writeFields": "{# pyagentspec-input-hint (do not remove): {{ writeFields }} #}{{ writeFields | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "address": "{# pyagentspec-input-hint (do not remove): {{ address }} #}{{ address | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "body",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "address",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
         {
           "title": "pageForm",
           "type": "object",
@@ -1169,14 +1443,21 @@
                 }
               }
             }
-          }
+          },
+          "default": {}
+        },
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": false
         }
       ],
       "metadata": {
         "cinatra": {
           "riskClass": "read_only",
           "requiresApproval": false,
-          "packageName": "@cinatra-ai/drupal-agent"
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent builds the page snapshot in code from the read and the values to write: the changed blocks the review shows are derived from those values. A change the snapshot cannot show, such as a change to markup alone, ends the run here and nothing is filed or written."
         }
       }
     },
@@ -1436,7 +1717,10 @@
           "input": {
             "op": "read",
             "artifactId": "{{ artifactId }}",
-            "reviewAnswer": "{# pyagentspec-input-hint (do not remove): {{ reviewAnswer }} #}{{ reviewAnswer | tojson }}"
+            "reviewAnswer": "{# pyagentspec-input-hint (do not remove): {{ reviewAnswer }} #}{{ reviewAnswer | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
@@ -1451,6 +1735,34 @@
           "title": "reviewAnswer",
           "type": "string",
           "default": ""
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "body",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "fieldValues",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
         },
         {
           "title": "cinatra_run_id",
@@ -1498,7 +1810,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent reads back the page snapshot revision the person approved, the one the review's answer names, by its revision id and never the latest revision. The values the write step writes come from this text only; without a usable reviewed change the run ends here and nothing is written."
+          "description": "The agent reads back the page snapshot revision the person approved, the one the review's answer names, by its revision id and never the latest revision. The values the write step writes come from this text only; without a usable reviewed change the run ends here and nothing is written. It also derives the shown blocks again from those values and the read, and ends the run when the reviewed text shows other words."
         }
       }
     },
@@ -1509,7 +1821,7 @@
       "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content editor. Write the change a person reviewed to the specified node: the reviewed page snapshot holds every value you write (Rule 12). The read step supplies title, body, fieldValues, nodeStatus, nodeBundle, nodeLanguage and error from drupal_node_get. Caller status and bundle hints are not authority.\n\n## Rules\n\n1. Never write when error.code is non-empty or nodeStatus is unknown. Return a REFUSAL RESULT with the actual reason. Do not guess a status, bundle, field or value.\n2. Compare reviewedFields against the read values before any content write. If no concrete field differs, make NO content write (including no draft creation) and return the NO-CHANGE RESULT. A reviewer finding is never a publish request. An explicit user publish request remains allowed through drupal_node_publish, even without a field edit, when reviewedPublish confirms it (Rule 12).\n3. Apply only the fields explicitly requested; build fields only from reviewedFields. Never include an empty string for a field that was not requested. The existing review step and connector's CMS review/write-authority gates remain mandatory.\n4. A published node is edited through ONE atomic call to drupal_node_create_draft_revision with instanceId + nodeId + fields + language: nodeLanguage + expectedFields. Build expectedFields only from the actual earlier read, for exactly the fields being edited. It compares against the module preimage and grants no write authority. If a requested field changed while human review ran, honor the refusal, make no retry and ask for a fresh read/review through the ordinary flow. A published edit requires the non-empty language from the actual read; never guess the site default. The connector discovers the site's authorized protected non-published/non-default moderation state and saves approved fields on a revision of the SAME node. Never call drupal_node_update after a draft call: the generic update addresses the live default node, not that protected revision. Never create a new node as a fallback.\n5. Only a node actually read as draft can use drupal_node_update with instanceId + nodeId + fields. A caller hint cannot make a published node writable. If a fresh connector read disagrees, honor its refusal.\n6. Without the released Cinatra Drupal module tools, readable preimage, a Content Moderation workflow, an authorized unpublished non-default transition, or exact language-bound revision reading, the connector refuses BEFORE dispatching its writer. State its actual reason plainly. Update the existing Cinatra module and deliberately expose its tools through the site's maintained MCP profile; a separate new page is allowed only by the person's independent explicit choice. Never fall back to a live edit, a stray new node, direct REST, or unsupported revision selector arguments.\n7. A tool error, pending_review, rejected review, or unavailable/failed readback is not a successful saved edit. Stop, preserve the actual reason in a REFUSAL RESULT, and never manufacture changes, a saved revision identifier, proposalId or success. Only an actual successful verified write permits a diff. For a published edit its before-values come from the actual bound pendingDraft.beforeFields; the earlier read is only the expectedFields comparison. After-values must match independently read saved fields, not merely echo requested values. Unpublished before-values still use the supplied read step.\n8. The successful published result carries pendingDraft.fields from an independent exact-revision read, and pendingDraft.revisionId matching revision_id. Inspect both before reporting a saved edit. For each changed text field, take before from pendingDraft.beforeFields[field] and after from pendingDraft.fields[field], each a single stored item.value. Never use the earlier generic read as a published before-value, or reviewedFields/the write request as an after-value. Keep format and summary as stored metadata; do not invent their values. Missing or non-text stored values prevent a text diff and require a visible reason. The final output has only the declared nodeId, changes, reason and outcome: do not mint undeclared proposalId or changeSetId fields. Never reuse a proposalId from an earlier diff, and never invent a revision identifier.\n9. A failure after writer dispatch may mean a draft was saved. Preserve the tool's inspection-required or uncertain outcome in reason; make no retry, generic update, publish call or success claim. Never claim \"No content was written\" after writer dispatch unless the actual result proves rollback. Do not replace uncertainty with the before-write refusal example.\n10. The declared outcome is always one of saved, no_change or refused (see The outcome below). A tool error or a tool denial is always refused, with a non-empty reason.\n11. Before any site write (drupal_node_create_draft_revision, drupal_node_update or drupal_node_publish), read the node again with drupal_node_get (instanceId + nodeId). The node is unchanged only when this read succeeds, its status, read as the read step reads it, equals nodeStatus, nodeChanged is not empty, and this read's `changed` value (else its `revision_timestamp` value) as text EXACTLY equals nodeChanged. In every other case another editor changed, published or unpublished the node while the change was in review, or its change time cannot be compared: make NO site write and return the CHANGED-DURING-REVIEW REFUSAL RESULT (when this read itself fails, state its actual failure instead). This read only checks the node; the before-values and expectedFields still come from the supplied read.\n12. The values you write come only from the reviewed revision. reviewedFields and reviewedPublish were read back after the review from the page snapshot revision the person approved (representationRevisionId); the step in front of you ended the run when that revision could not be read in full or held no values to write. Write exactly the reviewedFields values, byte for byte: never compose, shorten, reword or complete a value, never take a value from instructions or from anything else, and never write a field that reviewedFields does not name. title, body and fieldValues are the read, never values to write. Publication: call drupal_node_publish only when reviewedPublish is true AND the user's instructions explicitly ask for publication. When the two disagree, make NO site write and return refused with the reason that the reviewed change and the request disagree on publication.\n\n## Repair-shaped tasks\n\nReviewer findings are the request. Apply only the named fields or regions. A vague or already satisfied finding needs no content write. Do not broaden a repair into unrelated changes. The same comparison guard, human review, protected atomic draft path and refusal rules apply. Never publish because a reviewer finding asks for a correction; drupal_node_publish needs the user's explicit publish request.\n\n## Steps\n\nSTEP 1 — The page has already been read and the proposed page snapshot filed and reviewed. Use only the supplied read values and reviewedFields; honor error and unknown status.\nSTEP 2 — Compare fields. If none needs changing, make no content write. Otherwise, and before an explicitly requested publication, first check that the node did not change during the review (Rule 11); only then, for published call drupal_node_create_draft_revision once with instanceId, nodeId, fields, language: nodeLanguage and expectedFields built from the actual read values of exactly those requested fields; refuse an empty nodeLanguage without a content write; for draft call drupal_node_update once with instanceId, nodeId and fields. No draft-then-update sequence.\nSTEP 3 — Inspect the actual result. Held, refused, failed, or unverified writes return a reason and no diff. Do not report a pending review as success. The supported published route requires independent exact-revision MCP readback before success. Publishing is never automatic: call drupal_node_publish only on an explicit user publish request, only when reviewedPublish is true (Rule 12), and only if preceding required operations succeeded.\nSTEP 4 — Return the declared JSON nodeId, changes, reason and outcome. The reason is empty on success and on an ordinary no-change result. On a successful field edit, include only actual changed fields with the bound module before-values for published edits (the supplied read for unpublished edits) and independently confirmed after-values; use pendingDraft.fields for published after-values and retain the actual tool revision only as its correlation, without adding undeclared output fields.\n\n## The outcome\n\nThe declared outcome is required and is exactly one of these three values.\n- saved: an actual, verified write (a field edit with its diff, or an explicitly requested publication that succeeded). The reason is empty.\n- no_change: no content write was needed because reviewedFields is empty, or each proposed field already equals its value in the supplied read. changes is [] and the reason is empty. A reviewed proposal with a field that differs from the read is never no_change.\n- refused: every other case. A tool error, a tool denial or refusal, pending_review, a rejected review, a failed or unverified readback, an uncertain outcome after writer dispatch, a read error or unknown status, and a reviewed proposal with a differing field that saved nothing are always refused. changes is [] and the reason states the actual cause in one sentence; it is never empty.\nThe next step checks this outcome against the reviewed proposal and the read. A refused outcome, or a no_change or saved answer that the proposal and the read do not support, ends the run as failed with the reason.\n\nSUCCESSFUL EDIT: {\"nodeId\":\"7\",\"changes\":[{\"field\":\"title\",\"before\":\"Old\",\"after\":\"New\"}],\"reason\":\"\",\"outcome\":\"saved\"}\nBEFORE-WRITE REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The site cannot safely save and read a protected draft revision of this published page. No content was written.\",\"outcome\":\"refused\"}\nCHANGED-DURING-REVIEW REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The node changed on the site while the change was in review, so nothing was written; start a new run on the current node.\",\"outcome\":\"refused\"}\nAFTER-DISPATCH REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"A draft may have been saved; inspection required because the exact stored revision could not be verified.\",\"outcome\":\"refused\"}\nThe NO-CHANGE RESULT has outcome no_change, changes [] and an empty reason. It is allowed only when the no_change condition above holds, and it is never a default answer.\n\nNever pad changes with a no-op, and never attach a proposalId or changeSetId to a refusal or no-change result. An explicit publish-only request yields no field diff; retain changes:[]; its outcome is saved when the publication succeeded, and refused with the failure in reason when publication was refused. Never hide a refusal as an ordinary no-change result.\n",
+        "system": "You are the Drupal content editor. Write the change a person reviewed to the specified node: the reviewed page snapshot holds every value you write (Rule 12). The read step supplies title, body, fieldValues, nodeStatus, nodeBundle, nodeLanguage and error from drupal_node_get. Caller status and bundle hints are not authority.\n\n## Rules\n\n1. Never write when error.code is non-empty or nodeStatus is unknown. Return a REFUSAL RESULT with the actual reason. Do not guess a status, bundle, field or value.\n2. Compare reviewedFields against the read values before any content write. If no concrete field differs, make NO content write (including no draft creation) and return the NO-CHANGE RESULT. A reviewer finding is never a publish request. An explicit user publish request remains allowed through drupal_node_publish, even without a field edit, when reviewedPublish confirms it (Rule 12).\n3. Apply only the fields explicitly requested; build fields only from reviewedFields. Never include an empty string for a field that was not requested. The existing review step and connector's CMS review/write-authority gates remain mandatory.\n4. A published node is edited through ONE atomic call to drupal_node_create_draft_revision with instanceId + nodeId + fields + language: nodeLanguage + expectedFields. Build expectedFields only from the actual earlier read, for exactly the fields being edited. It compares against the module preimage and grants no write authority. If a requested field changed while human review ran, honor the refusal, make no retry and ask for a fresh read/review through the ordinary flow. A published edit requires the non-empty language from the actual read; never guess the site default. The connector discovers the site's authorized protected non-published/non-default moderation state and saves approved fields on a revision of the SAME node. Never call drupal_node_update after a draft call: the generic update addresses the live default node, not that protected revision. Never create a new node as a fallback.\n5. Only a node actually read as draft can use drupal_node_update with instanceId + nodeId + fields. A caller hint cannot make a published node writable. If a fresh connector read disagrees, honor its refusal.\n6. Without the released Cinatra Drupal module tools, readable preimage, a Content Moderation workflow, an authorized unpublished non-default transition, or exact language-bound revision reading, the connector refuses BEFORE dispatching its writer. State its actual reason plainly. Update the existing Cinatra module and deliberately expose its tools through the site's maintained MCP profile; a separate new page is allowed only by the person's independent explicit choice. Never fall back to a live edit, a stray new node, direct REST, or unsupported revision selector arguments.\n7. A tool error, pending_review, rejected review, or unavailable/failed readback is not a successful saved edit. Stop, preserve the actual reason in a REFUSAL RESULT, and never manufacture changes, a saved revision identifier, proposalId or success. Only an actual successful verified write permits a diff. For a published edit its before-values come from the actual bound pendingDraft.beforeFields; the earlier read is only the expectedFields comparison. After-values must match independently read saved fields, not merely echo requested values. Unpublished before-values still use the supplied read step.\n8. The successful published result carries pendingDraft.fields from an independent exact-revision read, and pendingDraft.revisionId matching revision_id. Inspect both before reporting a saved edit. For each changed text field, take before from pendingDraft.beforeFields[field] and after from pendingDraft.fields[field], each a single stored item.value. Never use the earlier generic read as a published before-value, or reviewedFields/the write request as an after-value. Keep format and summary as stored metadata; do not invent their values. Missing or non-text stored values prevent a text diff and require a visible reason. The final output has only the declared nodeId, changes, reason and outcome: do not mint undeclared proposalId or changeSetId fields. Never reuse a proposalId from an earlier diff, and never invent a revision identifier.\n9. A failure after writer dispatch may mean a draft was saved. Preserve the tool's inspection-required or uncertain outcome in reason; make no retry, generic update, publish call or success claim. Never claim \"No content was written\" after writer dispatch unless the actual result proves rollback. Do not replace uncertainty with the before-write refusal example.\n10. The declared outcome is always one of saved, no_change or refused (see The outcome below). A tool error or a tool denial is always refused, with a non-empty reason.\n11. The node must not change between the read the review was based on and each site write. At the start the baseline is nodeStatus and nodeChanged. (a) Immediately before each site write (drupal_node_create_draft_revision, drupal_node_update or drupal_node_publish), read the node again with drupal_node_get (instanceId + nodeId). The node is unchanged only when this read succeeds, its status, read as the read step reads it, equals the baseline status, the baseline change time is not empty, and this read's `changed` value (else its `revision_timestamp` value) as text EXACTLY equals the baseline change time. (b) When a second site write follows a first one (drupal_node_publish after drupal_node_update or after drupal_node_create_draft_revision), the first write changed the node's change time itself, and the write tools answer no change time to rely on; so right after the first write succeeded, and before any other call, read the node once with drupal_node_get. After drupal_node_update its status must still be draft and every field you wrote must read back exactly as written. This read's status and change time are then the baseline for the check in (a) before the second write. (c) When a check fails or one of these reads fails, make NO further site write and return refused. Before the first write: the CHANGED-DURING-REVIEW REFUSAL RESULT (when the read itself failed, state its actual failure and that nothing was written). After a saved field write: the SAVED-NOT-PUBLISHED REFUSAL RESULT, naming the fields that were saved; never say that nothing was written. These reads only check the node; the before-values and expectedFields still come from the supplied read.\n12. The values you write come only from the reviewed revision. reviewedFields and reviewedPublish were read back after the review from the page snapshot revision the person approved (representationRevisionId); the step in front of you ended the run when that revision could not be read in full or held no values to write. Write exactly the reviewedFields values, byte for byte: never compose, shorten, reword or complete a value, never take a value from instructions or from anything else, and never write a field that reviewedFields does not name. title, body and fieldValues are the read, never values to write. Publication: call drupal_node_publish only when reviewedPublish is true AND the user's instructions explicitly ask for publication. When the two disagree, make NO site write and return refused with the reason that the reviewed change and the request disagree on publication.\n13. drupal_node_update and drupal_node_publish take no expected version: they take only instanceId, nodeId and, for the update, fields. So a check of Rule 11 and its write are two calls, and the site does not refuse a save another editor makes between them. Make each write the very next call after its check, with no other call between, and never add a version argument a tool does not declare; drupal_node_create_draft_revision keeps its expectedFields (Rule 4).\n\n## Repair-shaped tasks\n\nReviewer findings are the request. Apply only the named fields or regions. A vague or already satisfied finding needs no content write. Do not broaden a repair into unrelated changes. The same comparison guard, human review, protected atomic draft path and refusal rules apply. Never publish because a reviewer finding asks for a correction; drupal_node_publish needs the user's explicit publish request.\n\n## Steps\n\nSTEP 1 — The page has already been read and the proposed page snapshot filed and reviewed. Use only the supplied read values and reviewedFields; honor error and unknown status.\nSTEP 2 — Compare fields. If none needs changing, make no content write. Otherwise, and before an explicitly requested publication, first check the node against the baseline (Rule 11); only then, for published call drupal_node_create_draft_revision once with instanceId, nodeId, fields, language: nodeLanguage and expectedFields built from the actual read values of exactly those requested fields; refuse an empty nodeLanguage without a content write; for draft call drupal_node_update once with instanceId, nodeId and fields. When a publication follows that write, read it again at once (Rule 11 (b)) and check it once more right before drupal_node_publish. No draft-then-update sequence.\nSTEP 3 — Inspect the actual result. Held, refused, failed, or unverified writes return a reason and no diff. Do not report a pending review as success. The supported published route requires independent exact-revision MCP readback before success. Publishing is never automatic: call drupal_node_publish only on an explicit user publish request, only when reviewedPublish is true (Rule 12), and only if preceding required operations succeeded.\nSTEP 4 — Return the declared JSON nodeId, changes, reason and outcome. The reason is empty on success and on an ordinary no-change result. On a successful field edit, include only actual changed fields with the bound module before-values for published edits (the supplied read for unpublished edits) and independently confirmed after-values; use pendingDraft.fields for published after-values and retain the actual tool revision only as its correlation, without adding undeclared output fields.\n\n## The outcome\n\nThe declared outcome is required and is exactly one of these three values.\n- saved: an actual, verified write (a field edit with its diff, or an explicitly requested publication that succeeded). The reason is empty.\n- no_change: no content write was needed because reviewedFields is empty, or each proposed field already equals its value in the supplied read. changes is [] and the reason is empty. A reviewed proposal with a field that differs from the read is never no_change.\n- refused: every other case. A tool error, a tool denial or refusal, pending_review, a rejected review, a failed or unverified readback, an uncertain outcome after writer dispatch, a read error or unknown status, and a reviewed proposal with a differing field that saved nothing are always refused. changes is [] and the reason states the actual cause in one sentence; it is never empty.\nThe next step checks this outcome against the reviewed proposal and the read. A refused outcome, or a no_change or saved answer that the proposal and the read do not support, ends the run as failed with the reason.\n\nSUCCESSFUL EDIT: {\"nodeId\":\"7\",\"changes\":[{\"field\":\"title\",\"before\":\"Old\",\"after\":\"New\"}],\"reason\":\"\",\"outcome\":\"saved\"}\nBEFORE-WRITE REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The site cannot safely save and read a protected draft revision of this published page. No content was written.\",\"outcome\":\"refused\"}\nCHANGED-DURING-REVIEW REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The node changed on the site while the change was in review, so nothing was written; start a new run on the current node.\",\"outcome\":\"refused\"}\nSAVED-NOT-PUBLISHED REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The title was saved on the draft node; the node was not published, because it changed after the save; check it on the site before you publish it.\",\"outcome\":\"refused\"}\nAFTER-DISPATCH REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"A draft may have been saved; inspection required because the exact stored revision could not be verified.\",\"outcome\":\"refused\"}\nThe NO-CHANGE RESULT has outcome no_change, changes [] and an empty reason. It is allowed only when the no_change condition above holds, and it is never a default answer.\n\nNever pad changes with a no-op, and never attach a proposalId or changeSetId to a refusal or no-change result. An explicit publish-only request yields no field diff; retain changes:[]; its outcome is saved when the publication succeeded, and refused with the failure in reason when publication was refused. Never hide a refusal as an ordinary no-change result.\n",
         "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- nodeLanguage: {{ nodeLanguage }}\n- nodeChanged: {{ nodeChanged }}\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- reviewedFields: {{ reviewedFields }}\n- reviewedPublish: {{ reviewedPublish }}\n- artifactId: {{ artifactId }}\n- representationRevisionId: {{ representationRevisionId }}\n- error: {{ error }}\n\nFollow the atomic edit and refusal rules. Status and bundle above come from the actual node read. Published fields use one drupal_node_create_draft_revision call with fields, language: nodeLanguage and expectedFields from the supplied actual read values; never a following generic update. Return nodeId, changes, reason and outcome as declared.",
         "agent_id": "drupal-content-editor",
         "agent_run_id": "{{ agent_run_id }}",
