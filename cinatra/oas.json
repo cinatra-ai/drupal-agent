@@ -1210,6 +1210,7 @@
       "metadata": {
         "cinatra": {
           "riskClass": "write",
+          "publishes": false,
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
           "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review."
@@ -1267,6 +1268,7 @@
       "metadata": {
         "cinatra": {
           "riskClass": "write",
+          "publishes": false,
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
           "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review."
@@ -1473,6 +1475,36 @@
       "metadata": {
         "cinatra": {
           "riskClass": "write",
+          "publishes": true,
+          "publishRows": [
+            {
+              "label": "Drupal site",
+              "input": "instanceId"
+            },
+            {
+              "label": "Node",
+              "input": "nodeId"
+            },
+            {
+              "label": "Current title",
+              "input": "title"
+            },
+            {
+              "kind": "list",
+              "label": "Fields to write",
+              "input": "proposedFields",
+              "columns": [
+                {
+                  "label": "Field",
+                  "field": "field"
+                },
+                {
+                  "label": "New value",
+                  "field": "value"
+                }
+              ]
+            }
+          ],
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent"
         }
