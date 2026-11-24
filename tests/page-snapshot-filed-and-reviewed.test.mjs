@@ -4,10 +4,10 @@
 // proposed words, the application reviews it, and the write step follows the
 // review.
 //
-// The eight arms pin: the ten steps on one road; the read step; the compose
+// The eight arms pin: the eleven steps on one road; the read step; the compose
 // step and the one example form it carries; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
-// step after the review; the declared module; and the end node binding nothing.
+// step after the review and the read of the reviewed revision; the declared module; and the end node binding nothing.
 //
 // Zero-dependency; runs on plain node:test via tests/run.mjs.
 
@@ -36,6 +36,7 @@ const ROAD = [
   "file_page",
   "gather_page_review",
   "page_review_gate",
+  "read_reviewed_page",
   "load_node",
   "settle_outcome",
   "emit_output",
@@ -222,7 +223,7 @@ const DRUPAL_FIXTURE_FORM = {
 
 // ---------------------------------------------------------------------------
 
-test("S1 the ten steps stand on one road, the write step after the review", () => {
+test("S1 the eleven steps stand on one road, the write step after the review", () => {
   assert.deepEqual(
     (oas.nodes ?? []).map((n) => n.$component_ref),
     ROAD,
@@ -234,7 +235,7 @@ test("S1 the ten steps stand on one road, the write step after the review", () =
     e.to_node.$component_ref,
   ]);
   const expected = ROAD.slice(1).map((to, i) => [ROAD[i], to]);
-  assert.deepEqual(edges, expected, "nine control edges, one road, in exactly this order");
+  assert.deepEqual(edges, expected, "ten control edges, one road, in exactly this order");
   assert.equal(oas.start_node.$component_ref, "start");
   assert.ok(
     ROAD.indexOf("load_node") > ROAD.indexOf("page_review_gate") &&
@@ -282,7 +283,7 @@ test("S2 the read step reads the node and composes its public address", () => {
   assert.deepEqual(memberKeys(error.json_schema), ["code", "message"]);
 });
 
-test("S3 the compose step answers the proposed fields and the page form, with one example form the display parses", () => {
+test("S3 the compose step answers the page form with the values to write, with one example form the display parses", () => {
   const node = part("compose_change");
   assert.equal(node.component_type, "ApiNode");
   assert.ok(node.url.includes(LLM_BRIDGE_PATH), "the compose step is a bridge step");
@@ -294,13 +295,17 @@ test("S3 the compose step answers the proposed fields and the page form, with on
     assertEdge("compose_change", output, "read_node", output);
   }
 
-  assert.deepEqual(titles(node.outputs), ["pageTitle", "proposedFields", "pageForm"]);
+  assert.deepEqual(titles(node.outputs), ["pageTitle", "pageForm"]);
   assert.equal(declared(node.outputs, "pageTitle").type, "string");
-  assertStringItems(declared(node.outputs, "proposedFields"));
   const pageForm = declared(node.outputs, "pageForm");
   assert.equal(pageForm.type, "object");
   const form = pageForm.json_schema;
-  assert.deepEqual(memberKeys(form), ["cinatraCmsPage", "excerpts", "page", "system"]);
+  assert.deepEqual(memberKeys(form), ["cinatraCmsPage", "excerpts", "page", "system", "writeFields"]);
+  assert.deepEqual(memberKeys(form.properties.writeFields), ["fields", "publish"]);
+  const writeList = form.properties.writeFields.properties.fields;
+  assert.equal(writeList.type, "array");
+  assert.deepEqual(memberKeys(writeList.items), ["field", "value"]);
+  assert.equal(form.properties.writeFields.properties.publish.type, "boolean");
   assert.deepEqual(memberKeys(form.properties.page), ["address", "cmsAddress", "title"]);
   assert.equal(form.properties.excerpts.type, "array");
   assert.deepEqual(memberKeys(form.properties.excerpts.items), [
@@ -421,17 +426,18 @@ test("S5 the projection step names the filed revision to the review step, the fl
   assert.deepEqual(pauses, ["page_review_gate"], "exactly one InputMessageNode in the flow");
 });
 
-test("S6 the write step follows the review", () => {
+test("S6 the write step follows the review and the read of the reviewed revision", () => {
   const node = part("load_node");
   const into = (oas.control_flow_connections ?? []).filter((e) => e.to_node.$component_ref === "load_node");
   assert.deepEqual(
     into.map((e) => e.from_node.$component_ref),
-    ["page_review_gate"],
-    "the only control edge into the write step comes from the review step",
+    ["read_reviewed_page"],
+    "the only control edge into the write step comes from the read of the reviewed revision",
   );
   assertEdge("load_node", "artifactId", "file_page", "artifactId");
-  assertEdge("load_node", "representationRevisionId", "file_page", "representationRevisionId");
-  assertEdge("load_node", "proposedFields", "compose_change", "proposedFields");
+  assertEdge("load_node", "representationRevisionId", "read_reviewed_page", "reviewedRevisionId");
+  assertEdge("load_node", "reviewedFields", "read_reviewed_page", "reviewedFields");
+  assertEdge("load_node", "reviewedPublish", "read_reviewed_page", "reviewedPublish");
   for (const output of ["title", "body", "fieldValues"]) {
     assertEdge("load_node", output, "read_node", output);
   }
@@ -445,6 +451,7 @@ test("S7 the declared module files the set it is handed and nothing else", async
   assert.deepEqual(pkg.cinatra.tools, [
     { name: "review_targets", module: "./cinatra/tools/review-targets.mjs" },
     { name: "settle_outcome", module: "./cinatra/tools/settle-outcome.mjs" },
+    { name: "reviewed_change", module: "./cinatra/tools/reviewed-change.mjs" },
   ]);
   const { extensionTool } = await import("../cinatra/tools/review-targets.mjs");
   assert.equal(typeof extensionTool, "function");

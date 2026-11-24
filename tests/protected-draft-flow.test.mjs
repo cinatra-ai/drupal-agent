@@ -50,7 +50,8 @@ test("unsupported, held or failed writes have a declared visible reason through 
   assert.match(parts.load_node.data.system, /reason.*empty.*success/i);
 });
 test("human review, no-change guard, repair scope and explicit-only publish remain", () => {
-  assert.deepEqual(oas.control_flow_connections.filter((e) => e.to_node.$component_ref === "load_node").map((e) => e.from_node.$component_ref), ["page_review_gate"]);
+  assert.deepEqual(oas.control_flow_connections.filter((e) => e.to_node.$component_ref === "load_node").map((e) => e.from_node.$component_ref), ["read_reviewed_page"]);
+  assert.deepEqual(oas.control_flow_connections.filter((e) => e.to_node.$component_ref === "read_reviewed_page").map((e) => e.from_node.$component_ref), ["page_review_gate"]);
   const text = parts.load_node.data.system;
   assert.match(text, /NO-CHANGE RESULT/);
   assert.match(text, /reviewer finding.*never.*publish request/i);

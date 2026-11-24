@@ -93,7 +93,7 @@ test("O2 the write step's prompt gives no literal no-change answer as its defaul
     if (parsed.outcome === "refused") assert.ok(parsed.reason.length > 0, "a refusal example carries its reason");
   }
   assert.match(text, /tool error or a tool denial is always refused, with a non-empty reason/);
-  assert.match(text, /no_change: no content write was needed because the reviewed proposedFields is empty, or each proposed field already equals its value in the supplied read/);
+  assert.match(text, /no_change: no content write was needed because reviewedFields is empty, or each proposed field already equals its value in the supplied read/);
   assert.match(text, /A reviewed proposal with a field that differs from the read is never no_change/);
   assert.match(text, /never a default answer/);
 });
@@ -117,7 +117,7 @@ test("O3 the settle step follows the write step and reads its outcome, the revie
     outcome: ["load_node", "outcome"],
     reason: ["load_node", "reason"],
     changes: ["load_node", "changes"],
-    proposedFields: ["compose_change", "proposedFields"],
+    proposedFields: ["read_reviewed_page", "reviewedFields"],
     title: ["read_node", "title"],
     body: ["read_node", "body"],
     fieldValues: ["read_node", "fieldValues"],

@@ -68,6 +68,10 @@
       {
         "name": "settle_outcome",
         "module": "./cinatra/tools/settle-outcome.mjs"
+      },
+      {
+        "name": "reviewed_change",
+        "module": "./cinatra/tools/reviewed-change.mjs"
       }
     ],
     "lifecycle": {

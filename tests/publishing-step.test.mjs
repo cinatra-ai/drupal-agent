@@ -7,8 +7,9 @@
 // `metadata.cinatra.publishes: true`, has a person's released publish
 // decision. So `load_node` declares it, with the rows the publish card shows.
 // The application opens that card only after an approved artifact review
-// earlier in the same run; `page_review_gate` is that review, directly in
-// front of the write. The card names the node by its site, its id and its
+// earlier in the same run; `page_review_gate` is that review. Between the
+// review and the write, `read_reviewed_page` reads back the revision the
+// person approved, and the write step writes only the values of that text. The card names the node by its site, its id and its
 // title: two nodes of one site can share a title, never an id. Before any
 // site write, the write step reads the node again and writes nothing when it
 // changed during the review.
@@ -32,6 +33,7 @@ const parts = oas.$referenced_components;
 
 const WRITE_STEP = "load_node";
 const REVIEW_STEP = "page_review_gate";
+const REVIEWED_READ = "read_reviewed_page";
 const SITE_WRITE_TOOLS = ["drupal_node_publish", "drupal_node_update", "drupal_node_create_draft_revision"];
 const ACTION_KINDS = ["ApiNode", "AgentNode", "FlowNode", "ParallelFlowNode"];
 const NO_CONNECTOR_KINDS = ["StartNode", "EndNode", "InputMessageNode", "OutputMessageNode", "BranchingNode"];
@@ -175,9 +177,13 @@ test("every other step that can reach a connector declares publishes false or is
   assert.deepEqual(carriersOf("publishes").filter((id) => cinatraOf(parts[id]).publishes === true), [WRITE_STEP]);
 });
 
-test("an approved artifact review comes directly before the write, drawn by the application", () => {
-  const into = oas.control_flow_connections.filter((edge) => edge.to_node.$component_ref === WRITE_STEP);
-  assert.deepEqual(into.map((edge) => edge.from_node.$component_ref), [REVIEW_STEP]);
+test("an approved artifact review comes before the write, with only the read of the reviewed revision between", () => {
+  const road = topLevelIds();
+  assert.deepEqual(road.slice(road.indexOf(REVIEW_STEP), road.indexOf(WRITE_STEP) + 1), [REVIEW_STEP, REVIEWED_READ, WRITE_STEP]);
+  const into = (id) => oas.control_flow_connections.filter((edge) => edge.to_node.$component_ref === id).map((edge) => edge.from_node.$component_ref);
+  assert.deepEqual(into(WRITE_STEP), [REVIEWED_READ]);
+  assert.deepEqual(into(REVIEWED_READ), [REVIEW_STEP]);
+  assert.equal(cinatraOf(parts[REVIEWED_READ]).riskClass, "read_only", "the step between reaches no connector");
   const review = parts[REVIEW_STEP];
   assert.equal(review.component_type, "InputMessageNode");
   const cinatra = cinatraOf(review);

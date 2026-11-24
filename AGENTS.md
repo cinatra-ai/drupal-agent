@@ -49,6 +49,36 @@ The agent emits a single final assistant message containing a JSON object:
 
 The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts`) — WayFlow returns the conversation history in the `task` object; `task.artifacts` is not implemented. The caller JSON-parses the final assistant message text to extract `nodeId`, `changes` and the declared `reason`. A refusal carries no diff and names why no safe write occurred; ordinary success/no-change has an empty reason.
 
+## The write takes only the reviewed change (cinatra-ai/cinatra#3745)
+
+The flow is `start` → `read_node` → `compose_change` → `file_page` →
+`gather_page_review` → `page_review_gate` → `read_reviewed_page` → `load_node`
+→ `settle_outcome` → `emit_output` → `end`.
+
+`compose_change` files the values to write in the page snapshot itself:
+`pageForm.writeFields` holds `fields` (one `{field, value}` per changed field,
+the complete new value) and `publish` (true only on the user's explicit request
+to publish). It answers no other value: nothing reaches `load_node` from the
+compose step around the review.
+
+After the review, `read_reviewed_page` calls the pack's `reviewed_change` tool
+(`cinatra/tools/reviewed-change.mjs`). The tool takes the revision the review's
+answer approves (`review.targets` of the answer that resumes the run), not the
+revision this run filed: after a Regenerate the approved revision is a
+successor of the filed one. It reads that revision through the host's artifact
+read port by its revision id, and answers `reviewedFields`, `reviewedPublish`
+and `reviewedRevisionId`. `load_node` writes exactly `reviewedFields`, and
+calls `drupal_node_publish` only when `reviewedPublish` is true and the request
+asks for it; `settle_outcome` checks the outcome against `reviewedFields`.
+
+The tool refuses, so the run fails with `reviewed_change_unavailable` and a
+message and no Drupal call is made, when the answer names no approved revision
+of the filed artifact (another artifact, no target, no approval), when the read
+fails, is cut short or answers another revision or artifact, and when the text
+is not a Drupal page snapshot or carries no values to write. The re-read of the
+node before any site write, the `expectedFields` check of a published node and
+the node id on the publish card stay as they are.
+
 ## Draft revision workflow (critical)
 
 Published nodes must never be edited directly. The actual read determines the
