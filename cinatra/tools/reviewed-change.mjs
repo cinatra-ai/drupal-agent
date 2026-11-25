@@ -173,11 +173,9 @@ function valuesToWrite(text) {
 //
 // What the display cannot show is refused: a block whose two sides differ only
 // in white space (the display's parser rejects a block whose two sides hold
-// the same words, white space aside), a change that adds, removes or moves an
-// invisible character (see INVISIBLE CHARACTERS below), and more than 200
-// changed blocks. The display draws a run of white space inside a shown
-// block as one space, so the exact white space of a shown block is not
-// distinguishable; markup and words are.
+// the same words, white space aside), a changed block that holds an invisible
+// character or changes white space the display cannot draw (see the ONE RULE
+// PER CHANGED BLOCK below), and more than 200 changed blocks.
 // ---------------------------------------------------------------------------
 
 /** The most blocks the display draws from one form. */
@@ -473,195 +471,76 @@ export function alignedBlocks(region, was, will, meter) {
 const sameWords = (a, b) => a.trim().split(/\s+/).join(" ") === b.trim().split(/\s+/).join(" ");
 
 // ---------------------------------------------------------------------------
-// INVISIBLE CHARACTERS.
+// INVISIBLE CHARACTERS AND WHITE SPACE: ONE RULE PER CHANGED BLOCK.
 //
-// The display draws the shown blocks as plain text, so a character that draws
-// nothing, or that changes the direction of the text around it, cannot be
-// seen by the person who reviews the change. Such a character is called
-// invisible here:
-// - a format character (Unicode category Cf): the zero-width space, non-joiner
-//   and joiner, the word joiner, U+FEFF, the soft hyphen, the direction marks
-//   and the direction embeddings, overrides and isolates, and the tag
-//   characters;
-// - a control character (Cc) other than tab, line feed and carriage return;
-// - a space (Zs) other than U+0020 and U+00A0, and the line and paragraph
-//   separators (Zl, Zp): a thin, hair or narrow space can join or split words
-//   unseen, and the display draws a separator as a space;
-// - any other character Unicode marks as default ignorable, which draws
-//   nothing in normal text (for example U+034F or the Hangul fillers), except
-//   the variation selectors U+FE00 to U+FE0F, which only choose the look of
-//   the visible character before them (an emoji or a text form).
+// The display draws each changed block as plain text, and draws a run of white
+// space as one space. So what it cannot show must not change. The rule works
+// on each changed block (the unit the review shows), by exact positions:
 //
-// U+00A0, the no-break space, is taken as a space and kept as it is: the
-// display draws it as a space of full width, which is what it is; it changes
-// no word and no direction; pages often hold it; and a block whose only change
-// is a space to U+00A0 is refused already, as a change of white space alone.
-//
-// THE RULE: a change may not add, remove or move an invisible character. It
-// is computed on the difference between the read value and the value to
-// write, so a page that already holds such characters can still be edited.
-// The visible text of the two values (each value without its invisible
-// characters) is matched from the start and from the end. In the unchanged
-// visible text at the start and at the end, every run of invisible characters
-// must stand where it stood. In the changed part between them, each run of
-// invisible characters must stand between the same two visible characters on
-// both sides, as often: a run is kept where an edit leaves its visible
-// neighbours alone, and is added, removed or moved otherwise. So removing a
-// joiner from an emoji sequence, or replacing the sequence, is refused: it
-// removes a joiner, and changes what is drawn in a way the plain text does not
-// show. A change that breaks the rule is refused before anything is filed,
-// with the first such character named by its code point.
+// 1. A changed block that holds an invisible character, in its read text or in
+//    its new text, is refused: the agent does not change such a block at all,
+//    and a person changes it on the site. Unchanged blocks keep what they hold.
+//    An invisible character is one that draws nothing or changes the direction
+//    of the text around it: a format character (Cf: the zero-width space,
+//    non-joiner and joiner, the word joiner, U+FEFF, the soft hyphen, the
+//    direction marks, embeddings, overrides and isolates, the tag characters);
+//    a control character (Cc) other than tab, line feed and carriage return; a
+//    space (Zs) other than U+0020 and U+00A0; the line and paragraph
+//    separators (Zl, Zp); any other default ignorable character, except the
+//    variation selectors U+FE00 to U+FE0F, which only choose the look of the
+//    visible character before them.
+// 2. In the body and the title, outside a whitespace-sensitive block (one
+//    that holds `pre`, `textarea`, `code`, `listing`, `xmp`, `plaintext` or a
+//    `white-space` style), a run of ASCII white space counts as one space, as
+//    the page draws it. Inside such a block, and in every `field_` value (the
+//    tool cannot tell a plain text field, whose line breaks are drawn, from a
+//    formatted one), white space is taken byte for byte.
+// 3. Between the unchanged start and the unchanged end of the changed block
+//    (taken so that no run of white space is cut), every run of white space,
+//    U+00A0 included, must be one plain space U+0020 on both sides: that is
+//    exactly what the display draws. A block whose sides differ only in white
+//    space stays refused, as the display's parser rejects it.
 // ---------------------------------------------------------------------------
 
-const INVISIBLE_CLASS = String.raw`(?![\t\n\r \u00A0\uFE00-\uFE0F])[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]`;
-const INVISIBLE_ONE = new RegExp(`^${INVISIBLE_CLASS}$`, "u");
-const INVISIBLE_RUN = new RegExp(`(?:${INVISIBLE_CLASS})+`, "uy");
-const INVISIBLE_ANY = new RegExp(INVISIBLE_CLASS, "u");
+const INVISIBLE = /(?![\t\n\r \u00A0\uFE00-\uFE0F])[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/u;
+const SENSITIVE = /<(?:pre|textarea|code|listing|xmp|plaintext)\b|white-space/i;
+const ASCII_SPACE_RUN = /[\t\n\f\r ]+/g;
+const SPACE = /\s/;
+const SPACE_RUN = /\s+/g;
 
-/**
- * The most invisible characters the changed part of one value may hold, on
- * both sides together: it bounds the memory of the check. A page holds a few.
- */
-const MAX_INVISIBLE = 10_000;
-
-const isHigh = (unit) => unit >= 0xd800 && unit <= 0xdbff;
-const isLow = (unit) => unit >= 0xdc00 && unit <= 0xdfff;
 const codePointName = (text) => `U+${text.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`;
 
-/** The width, in code units, of the character that starts at `i`. */
-const widthAt = (text, i) => (isHigh(text.charCodeAt(i)) && isLow(text.charCodeAt(i + 1)) ? 2 : 1);
+/** Whether `text` holds a run of white space other than one plain space. */
+const otherSpace = (text) => (text.match(SPACE_RUN) ?? []).some((run) => run !== " ");
 
-/** The width, in code units, of the character that ends at `k`. */
-const widthBefore = (text, k) => (k >= 2 && isLow(text.charCodeAt(k - 1)) && isHigh(text.charCodeAt(k - 2)) ? 2 : 1);
-
-/** The index after the run of invisible characters that starts at `i` (`i` when there is none). */
-function runEnd(text, i) {
-  INVISIBLE_RUN.lastIndex = i;
-  const match = INVISIBLE_RUN.exec(text);
-  return match === null ? i : i + match[0].length;
-}
-
-/** The index where the run of invisible characters that ends at `k` starts (`k` when there is none). */
-function runStart(text, k) {
-  let at = k;
-  while (at > 0) {
-    const width = widthBefore(text, at);
-    if (!INVISIBLE_ONE.test(text.slice(at - width, at))) break;
-    at -= width;
-  }
-  return at;
-}
-
-function refuseInvisible(verb, ch, region) {
-  refuse(
-    `the change ${verb} an invisible character ${codePointName(ch)} in the ${region}, which the page snapshot cannot show`,
-    verb === "adds" ? "start a new run whose change does not add it" : "start a new run whose change keeps it where it is, or make that change on the site",
-  );
-}
-
-/** Refuses when two runs of invisible characters at one unchanged place differ: names the first character that differs. */
-function sameRun(region, was, will) {
-  if (was === will) return;
-  let i = 0;
-  while (i < was.length && i < will.length && was.codePointAt(i) === will.codePointAt(i)) i += widthAt(was, i);
-  if (i < will.length) refuseInvisible("adds", will.slice(i), region);
-  refuseInvisible("removes", was.slice(i), region);
-}
-
-/**
- * The runs of invisible characters of `text` from `from` to `to`, each counted
- * by `sign` in `counts` under a key made of the visible character before it,
- * the run and the visible character after it.
- */
-function countRuns(text, from, to, sign, counts, state) {
-  let i = from;
-  while (i < to) {
-    const end = runEnd(text, i);
-    if (end === i) {
-      i += widthAt(text, i);
-      continue;
+/** Refuses a changed block (`published` against `proposed`) that breaks the rule above. */
+export function checkedBlock(region, position, published, proposed) {
+  const name = `the changed block ${position + 1} of the ${region}`;
+  for (const side of [published, proposed]) {
+    const found = INVISIBLE.exec(side);
+    if (found !== null) {
+      refuse(
+        `${name} holds the invisible character ${codePointName(side.slice(found.index))}, which the page snapshot cannot show, and the agent does not change a block that holds one`,
+        "make that change on the site",
+      );
     }
-    state.characters += end - i;
-    if (state.characters > MAX_INVISIBLE) {
-      refuse(`the changed part of the ${state.region} holds more than ${MAX_INVISIBLE} invisible characters, more than the page snapshot form can check`);
-    }
-    const before = i === 0 ? "" : text.slice(i - widthBefore(text, i), i);
-    const after = end >= text.length ? "" : text.slice(end, end + widthAt(text, end));
-    const key = `${before}\u0000${text.slice(i, end)}\u0000${after}`;
-    counts.set(key, (counts.get(key) ?? 0) + sign);
-    i = end;
   }
-}
-
-/** Refuses unless the value to write keeps every invisible character of the read value, by THE RULE above, and adds none. */
-export function checkedInvisibles(region, was, will) {
-  if (!INVISIBLE_ANY.test(was) && !INVISIBLE_ANY.test(will)) return;
-  // The unchanged start: the common text, cut back to the start of the run of
-  // invisible characters it ends in, then matched visible character by
-  // visible character.
+  const exact = region.startsWith("field_") || SENSITIVE.test(published) || SENSITIVE.test(proposed);
+  const was = exact ? published : published.replace(ASCII_SPACE_RUN, " ");
+  const will = exact ? proposed : proposed.replace(ASCII_SPACE_RUN, " ");
   let start = 0;
   const shorter = Math.min(was.length, will.length);
-  while (start < shorter && was.charCodeAt(start) === will.charCodeAt(start)) start += 1;
-  if (start > 0 && isHigh(was.charCodeAt(start - 1))) start -= 1;
-  start = runStart(was, start);
-  let fromWas = start;
-  let fromWill = start;
-  let endWas;
-  let endWill;
-  for (;;) {
-    endWas = runEnd(was, fromWas);
-    endWill = runEnd(will, fromWill);
-    const doneWas = endWas >= was.length;
-    const doneWill = endWill >= will.length;
-    const nextWas = doneWas ? "" : was.slice(endWas, endWas + widthAt(was, endWas));
-    const nextWill = doneWill ? "" : will.slice(endWill, endWill + widthAt(will, endWill));
-    if (nextWas !== nextWill) break;
-    sameRun(region, was.slice(fromWas, endWas), will.slice(fromWill, endWill));
-    if (doneWas) return;
-    fromWas = endWas + nextWas.length;
-    fromWill = endWill + nextWill.length;
+  while (start < shorter && was[start] === will[start]) start += 1;
+  let end = 0;
+  while (end < shorter - start && was[was.length - 1 - end] === will[will.length - 1 - end]) end += 1;
+  while (start > 0 && SPACE.test(was[start - 1])) start -= 1;
+  while (end > 0 && SPACE.test(was[was.length - end])) end -= 1;
+  if (otherSpace(was.slice(start, was.length - end)) || otherSpace(will.slice(start, will.length - end))) {
+    refuse(
+      `${name} changes white space other than one plain space, which the page snapshot draws as one space and cannot show`,
+      "start a new run whose change keeps that white space as it is, or make that change on the site",
+    );
   }
-  // The unchanged end, matched the same way from the end, never into the
-  // unchanged start.
-  let tail = 0;
-  const longest = Math.min(was.length - endWas, will.length - endWill);
-  while (tail < longest && was.charCodeAt(was.length - 1 - tail) === will.charCodeAt(will.length - 1 - tail)) tail += 1;
-  let toWas = was.length - tail;
-  let toWill = will.length - tail;
-  if (tail > 0 && toWas < was.length && isLow(was.charCodeAt(toWas))) {
-    toWas += 1;
-    toWill += 1;
-  }
-  const skip = runEnd(was, toWas) - toWas;
-  toWas += skip;
-  toWill += skip;
-  for (;;) {
-    const backWas = runStart(was, toWas);
-    const backWill = runStart(will, toWill);
-    const prevWas = backWas > endWas ? was.slice(backWas - widthBefore(was, backWas), backWas) : "";
-    const prevWill = backWill > endWill ? will.slice(backWill - widthBefore(will, backWill), backWill) : "";
-    if (prevWas === "" || prevWas !== prevWill) break;
-    sameRun(region, was.slice(backWas, toWas), will.slice(backWill, toWill));
-    toWas = backWas - prevWas.length;
-    toWill = backWill - prevWill.length;
-  }
-  // The changed part: each run kept between the same two visible characters.
-  const counts = new Map();
-  const state = { region, characters: 0 };
-  countRuns(was, fromWas, toWas, 1, counts, state);
-  countRuns(will, fromWill, toWill, -1, counts, state);
-  let removed;
-  let added;
-  for (const [key, count] of counts) {
-    const run = key.split("\u0000")[1];
-    if (count > 0 && removed === undefined) removed = run;
-    if (count < 0 && added === undefined) added = run;
-  }
-  if (removed !== undefined && added !== undefined && removed.codePointAt(0) === added.codePointAt(0)) {
-    refuseInvisible("moves", removed, region);
-  }
-  if (added !== undefined) refuseInvisible("adds", added, region);
-  if (removed !== undefined) refuseInvisible("removes", removed, region);
 }
 
 /** The read's values as the derivation takes them: title, body and the `field_` values. */
@@ -683,9 +562,9 @@ function readValuesOf(call) {
  * THE ONE DERIVATION of the blocks the review shows, from the read (`title`,
  * `body`, `fieldValues`) and the values to write (`{ fields }`). Regions come
  * in the read's order: title, body, then the `field_` values. The total text
- * is checked first, then the invisible characters of each value
- * (`checkedInvisibles`), then the values are split, each block counted against
- * MAX_BLOCKS as it is made. `meter.blocks`, when given, counts the blocks made.
+ * is checked first, then the values are split, each block counted against
+ * MAX_BLOCKS as it is made, and each changed block is checked by
+ * `checkedBlock`. `meter.blocks`, when given, counts the blocks made.
  */
 export function pageExcerpts(read, writeFields, meter) {
   const values = read instanceof Map
@@ -707,7 +586,6 @@ export function pageExcerpts(read, writeFields, meter) {
   if (characters > MAX_TEXT) {
     refuse(`the values to compare hold more than ${MAX_TEXT} characters in all, more than the page snapshot form can compare`);
   }
-  for (const { region, before, after } of compared) checkedInvisibles(region, before, after);
   const budget = { left: MAX_BLOCKS, meter };
   for (const item of compared) {
     if (item.region === "title") continue;
@@ -718,6 +596,7 @@ export function pageExcerpts(read, writeFields, meter) {
   for (const { region, before, after, was, will } of compared) {
     if (region === "title") {
       if (sameWords(before, after)) refuse("the title changes only in white space, which the page snapshot cannot show");
+      checkedBlock(region, 0, before, after);
       excerpts.push({ region, position: 0, kind: "heading", level: 1, published: before, proposed: after });
       continue;
     }
@@ -729,6 +608,7 @@ export function pageExcerpts(read, writeFields, meter) {
       if (sameWords(published, proposed)) {
         refuse(`a block of ${region} changes only in white space, which the page snapshot cannot show`);
       }
+      checkedBlock(region, position, published, proposed);
       const shape = next ?? old;
       excerpts.push({ region, position, kind: shape.kind, level: shape.level, published, proposed });
     });

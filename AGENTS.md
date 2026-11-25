@@ -135,10 +135,18 @@ It refuses, before anything is filed, what the display cannot show: a block
 (or the title) whose two sides differ only in white space, because the
 display's parser rejects a block whose two sides hold the same words
 (`src/cms-page-model.ts:189`), and more than 200 changed blocks
-(`CMS_PAGE_MAX_EXCERPTS`). What is still not exact: the display draws a run of
-white space inside a shown block as one space, so the exact white space of a
-changed block (two spaces, a tab or a line break, which matters only inside
-`pre`, raw-text elements or attribute values) is not distinguishable.
+(`CMS_PAGE_MAX_EXCERPTS`). One rule per changed block covers what plain text
+hides (`checkedBlock`). A changed block that holds an invisible character
+(format and control characters, spaces other than U+0020 and U+00A0, line and
+paragraph separators, other default ignorable characters) in its read or new
+text is refused: the agent does not change such a block, a person does it on
+the site; this freezes blocks with joined emoji, soft hyphens or direction
+marks. Between the unchanged start and end of a changed block, every run of
+white space must be one plain space on both sides; in the body and the title,
+outside blocks holding `pre`, `textarea`, `code` or a `white-space` style, a
+run of ASCII white space counts as one space first, as the page draws it, and
+`field_` values are taken byte for byte. So a line break, a tab, two spaces or
+a no-break space cannot change inside a shown change.
 
 The read-back accepts the review's answer only when all its signals agree:
 `approved` is true, `review.decision` is `approved`, `review.envelopeVersion`
