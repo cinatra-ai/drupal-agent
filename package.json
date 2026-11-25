@@ -1,8 +1,8 @@
 {
   "name": "@cinatra-ai/drupal-agent",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "Apache-2.0",
-  "description": "Edits Drupal content nodes from natural language instructions via the Drupal MCP server.",
+  "description": "Edits a Drupal page from plain-language instructions: a person reviews the change, which is saved, never published, only if the page is unchanged.",
   "type": "module",
   "files": [
     "cinatra"
@@ -38,7 +38,7 @@
     ],
     "consumes": [
       {
-        "primitive": "drupal_node_get",
+        "primitive": "drupal_node_read_for_edit",
         "requirement": "required"
       },
       {
@@ -47,10 +47,6 @@
       },
       {
         "primitive": "drupal_node_create_draft_revision",
-        "requirement": "required"
-      },
-      {
-        "primitive": "drupal_node_publish",
         "requirement": "required"
       }
     ],
@@ -66,8 +62,8 @@
         "module": "./cinatra/tools/review-targets.mjs"
       },
       {
-        "name": "settle_outcome",
-        "module": "./cinatra/tools/settle-outcome.mjs"
+        "name": "reviewed_change",
+        "module": "./cinatra/tools/reviewed-change.mjs"
       }
     ],
     "lifecycle": {

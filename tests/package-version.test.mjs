@@ -12,10 +12,11 @@ import { readFileSync } from "node:fs";
 // is not re-imported by an install whose lifecycle projection matches and whose install record
 // is live: the old manifest then rejects the new tool as undeclared, or the old flow keeps
 // running.
-// The settle_outcome tool and its flow step arrived after 0.1.4, so the version that carries
-// them is 0.1.5. A version below 0.1.5 would hide them from each such install that already
-// holds 0.1.4.
-const SETTLE_OUTCOME_FIRST_VERSION = [0, 1, 5];
+// The model-free read and write (the read step, the check of the read, the two
+// publishing steps and the outcome step of the reviewed_change tool) arrived
+// after 0.1.7, so the version that carries them is 0.1.8. A version below 0.1.8
+// would leave each such install that already holds 0.1.7 on the old flow.
+const MODEL_FREE_FIRST_VERSION = [0, 1, 8];
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const flow = JSON.parse(readFileSync(new URL("../cinatra/oas.json", import.meta.url), "utf8"));
@@ -33,22 +34,23 @@ function atLeast(version, floor) {
   return true;
 }
 
-test("the package version carries the settle_outcome tool and its flow step", () => {
-  const declared = (pkg.cinatra?.tools ?? []).some((tool) => tool.name === "settle_outcome");
-  const inFlow = JSON.stringify(flow).includes('"settle_outcome"');
-  assert.ok(declared, "package.json declares the settle_outcome tool");
-  assert.ok(inFlow, "the flow calls the settle_outcome tool");
+test("the package version carries the model-free read and write", () => {
+  const steps = flow.$referenced_components;
+  for (const step of ["read_page", "check_read", "write_draft", "write_unpublished", "write_outcome"]) {
+    assert.ok(steps[step], `the flow has the step ${step}`);
+  }
+  assert.ok((pkg.cinatra?.tools ?? []).some((tool) => tool.name === "reviewed_change"), "package.json declares the reviewed_change tool");
   assert.ok(
-    atLeast(parse(pkg.version), SETTLE_OUTCOME_FIRST_VERSION),
-    `version ${pkg.version} is below ${SETTLE_OUTCOME_FIRST_VERSION.join(".")}, the first version that carries settle_outcome`,
+    atLeast(parse(pkg.version), MODEL_FREE_FIRST_VERSION),
+    `version ${pkg.version} is below ${MODEL_FREE_FIRST_VERSION.join(".")}, the first version that carries the model-free flow`,
   );
 });
 
 test("the version parser refuses a version that is not major.minor.patch", () => {
   assert.throws(() => parse("0.1"), /plain major\.minor\.patch/);
   assert.throws(() => parse("0.1.5-rc.1"), /plain major\.minor\.patch/);
-  assert.equal(atLeast([0, 1, 4], SETTLE_OUTCOME_FIRST_VERSION), false);
-  assert.equal(atLeast([0, 1, 5], SETTLE_OUTCOME_FIRST_VERSION), true);
-  assert.equal(atLeast([0, 2, 0], SETTLE_OUTCOME_FIRST_VERSION), true);
-  assert.equal(atLeast([1, 0, 0], SETTLE_OUTCOME_FIRST_VERSION), true);
+  assert.equal(atLeast([0, 1, 7], MODEL_FREE_FIRST_VERSION), false);
+  assert.equal(atLeast([0, 1, 8], MODEL_FREE_FIRST_VERSION), true);
+  assert.equal(atLeast([0, 2, 0], MODEL_FREE_FIRST_VERSION), true);
+  assert.equal(atLeast([1, 0, 0], MODEL_FREE_FIRST_VERSION), true);
 });

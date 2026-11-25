@@ -3,7 +3,7 @@
   "component_type": "Flow",
   "id": "drupal-content-editor-flow",
   "name": "Drupal Agent",
-  "description": "Edits and publishes content to a connected Drupal CMS instance.",
+  "description": "Edits a Drupal page: a person reviews the proposed change, and it is saved, never published, only if the page is unchanged since it was read.",
   "metadata": {
     "cinatra": {
       "type": "node",
@@ -72,6 +72,22 @@
     {
       "title": "reason",
       "type": "string"
+    },
+    {
+      "title": "error",
+      "type": "object",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "default": {}
     }
   ],
   "start_node": {
@@ -82,10 +98,19 @@
       "$component_ref": "start"
     },
     {
-      "$component_ref": "read_node"
+      "$component_ref": "read_page"
+    },
+    {
+      "$component_ref": "check_read"
     },
     {
       "$component_ref": "compose_change"
+    },
+    {
+      "$component_ref": "form_page"
+    },
+    {
+      "$component_ref": "route_change"
     },
     {
       "$component_ref": "file_page"
@@ -97,10 +122,25 @@
       "$component_ref": "page_review_gate"
     },
     {
-      "$component_ref": "load_node"
+      "$component_ref": "read_reviewed_page"
     },
     {
-      "$component_ref": "settle_outcome"
+      "$component_ref": "route_status"
+    },
+    {
+      "$component_ref": "write_draft"
+    },
+    {
+      "$component_ref": "write_unpublished"
+    },
+    {
+      "$component_ref": "write_outcome"
+    },
+    {
+      "$component_ref": "route_write"
+    },
+    {
+      "$component_ref": "no_change_outcome"
     },
     {
       "$component_ref": "emit_output"
@@ -112,19 +152,29 @@
   "control_flow_connections": [
     {
       "component_type": "ControlFlowEdge",
-      "name": "start_to_read_node",
+      "name": "start_to_read_page",
       "from_node": {
         "$component_ref": "start"
       },
       "to_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "read_page"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "read_node_to_compose_change",
+      "name": "read_page_to_check_read",
       "from_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "read_page"
+      },
+      "to_node": {
+        "$component_ref": "check_read"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "check_read_to_compose_change",
+      "from_node": {
+        "$component_ref": "check_read"
       },
       "to_node": {
         "$component_ref": "compose_change"
@@ -132,12 +182,44 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "compose_change_to_file_page",
+      "name": "compose_change_to_form_page",
       "from_node": {
         "$component_ref": "compose_change"
       },
+      "to_node": {
+        "$component_ref": "form_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "form_page_to_route_change",
+      "from_node": {
+        "$component_ref": "form_page"
+      },
+      "to_node": {
+        "$component_ref": "route_change"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_change_to_file_page",
+      "from_node": {
+        "$component_ref": "route_change"
+      },
+      "from_branch": "default",
       "to_node": {
         "$component_ref": "file_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_change_to_no_change_outcome",
+      "from_node": {
+        "$component_ref": "route_change"
+      },
+      "from_branch": "no_change",
+      "to_node": {
+        "$component_ref": "no_change_outcome"
       }
     },
     {
@@ -162,29 +244,224 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "page_review_gate_to_load_node",
+      "name": "page_review_gate_to_read_reviewed_page",
       "from_node": {
         "$component_ref": "page_review_gate"
       },
       "to_node": {
-        "$component_ref": "load_node"
+        "$component_ref": "read_reviewed_page"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "load_node_to_settle_outcome",
+      "name": "read_reviewed_page_to_route_status",
       "from_node": {
-        "$component_ref": "load_node"
+        "$component_ref": "read_reviewed_page"
       },
       "to_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "route_status"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "settle_outcome_to_emit_output",
+      "name": "route_status_published_to_write_draft",
       "from_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "route_status"
+      },
+      "from_branch": "published",
+      "to_node": {
+        "$component_ref": "write_draft"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_status_draft_to_write_unpublished",
+      "from_node": {
+        "$component_ref": "route_status"
+      },
+      "from_branch": "draft",
+      "to_node": {
+        "$component_ref": "write_unpublished"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_status_default_to_write_outcome",
+      "from_node": {
+        "$component_ref": "route_status"
+      },
+      "from_branch": "default",
+      "to_node": {
+        "$component_ref": "write_outcome"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "write_draft_to_write_outcome",
+      "from_node": {
+        "$component_ref": "write_draft"
+      },
+      "to_node": {
+        "$component_ref": "write_outcome"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "write_unpublished_to_write_outcome",
+      "from_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "to_node": {
+        "$component_ref": "write_outcome"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "write_outcome_to_route_write",
+      "from_node": {
+        "$component_ref": "write_outcome"
+      },
+      "to_node": {
+        "$component_ref": "route_write"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_written_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "written",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_pending_revision_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "pending_revision",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_permission_denied_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "permission_denied",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_invalid_input_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "invalid_input",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_refused_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "refused",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_write_unverified_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "write_unverified",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_invalid_binding_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "invalid_binding",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_wrong_page_state_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "wrong_page_state",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_module_capability_missing_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "module_capability_missing",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_read_unavailable_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "read_unavailable",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_default_to_emit_output",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "default",
+      "to_node": {
+        "$component_ref": "emit_output"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "route_write_node_changed_to_read_page",
+      "from_node": {
+        "$component_ref": "route_write"
+      },
+      "from_branch": "node_changed",
+      "to_node": {
+        "$component_ref": "read_page"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "no_change_outcome_to_emit_output",
+      "from_node": {
+        "$component_ref": "no_change_outcome"
       },
       "to_node": {
         "$component_ref": "emit_output"
@@ -204,39 +481,159 @@
   "data_flow_connections": [
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_read_node_instanceId",
+      "name": "start_to_read_page_instanceId",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "instanceId",
       "destination_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "read_page"
       },
       "destination_input": "instanceId"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_read_node_nodeId",
+      "name": "start_to_read_page_nodeId",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "nodeId",
       "destination_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "read_page"
       },
       "destination_input": "nodeId"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_read_node_agent_run_id",
+      "name": "start_to_read_page_agent_run_id",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "cinatra_run_id",
       "destination_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "read_page"
       },
       "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_readNodeId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "readNodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_readInstanceId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "readInstanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_nid",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "nid",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "nid"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_language",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "language",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "language"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_published",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "published",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "published"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_fields",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "fields",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "fields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_check_read_binding",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "binding",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "binding"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_check_read_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_check_read_instanceId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_check_read_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "check_read"
+      },
+      "destination_input": "cinatra_run_id"
     },
     {
       "component_type": "DataFlowEdge",
@@ -252,9 +649,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_compose_change_title",
+      "name": "check_read_to_compose_change_title",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "title",
       "destination_node": {
@@ -264,9 +661,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_compose_change_body",
+      "name": "check_read_to_compose_change_body",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "body",
       "destination_node": {
@@ -276,9 +673,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_compose_change_fieldValues",
+      "name": "check_read_to_compose_change_fieldValues",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "fieldValues",
       "destination_node": {
@@ -288,9 +685,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_compose_change_address",
+      "name": "check_read_to_compose_change_address",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "address",
       "destination_node": {
@@ -300,9 +697,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_compose_change_error",
+      "name": "check_read_to_compose_change_error",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "error",
       "destination_node": {
@@ -312,7 +709,7 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_compose_change_agent_run_id",
+      "name": "start_to_compose_change_agent_run_id",
       "source_node": {
         "$component_ref": "start"
       },
@@ -324,9 +721,129 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_file_page_pageTitle",
+      "name": "compose_change_to_form_page_writeFields",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "compose_change"
+      },
+      "source_output": "writeFields",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "writeFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_title",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_body",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_fieldValues",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_address",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "address",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "address"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_error",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_form_page_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_form_page_nodeStatus",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "status",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_form_page_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "form_page_to_route_change_next",
+      "source_node": {
+        "$component_ref": "form_page"
+      },
+      "source_output": "next",
+      "destination_node": {
+        "$component_ref": "route_change"
+      },
+      "destination_input": "next"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_file_page_pageTitle",
+      "source_node": {
+        "$component_ref": "check_read"
       },
       "source_output": "title",
       "destination_node": {
@@ -336,9 +853,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "compose_change_to_file_page_pageForm",
+      "name": "form_page_to_file_page_pageForm",
       "source_node": {
-        "$component_ref": "compose_change"
+        "$component_ref": "form_page"
       },
       "source_output": "pageForm",
       "destination_node": {
@@ -348,7 +865,7 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_file_page_cinatra_run_id",
+      "name": "start_to_file_page_cinatra_run_id",
       "source_node": {
         "$component_ref": "start"
       },
@@ -384,7 +901,7 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_gather_page_review_cinatra_run_id",
+      "name": "start_to_gather_page_review_cinatra_run_id",
       "source_node": {
         "$component_ref": "start"
       },
@@ -408,9 +925,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_page_review_gate_pageTitle",
+      "name": "check_read_to_page_review_gate_pageTitle",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "title",
       "destination_node": {
@@ -420,363 +937,879 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_load_node_instanceId",
+      "name": "write_outcome_to_page_review_gate_reviewNotice",
       "source_node": {
-        "$component_ref": "start"
+        "$component_ref": "write_outcome"
       },
-      "source_output": "instanceId",
+      "source_output": "reviewNotice",
       "destination_node": {
-        "$component_ref": "load_node"
+        "$component_ref": "page_review_gate"
       },
-      "destination_input": "instanceId"
+      "destination_input": "reviewNotice"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_to_load_node_nodeId",
-      "source_node": {
-        "$component_ref": "start"
-      },
-      "source_output": "nodeId",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "nodeId"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_nodeBundle",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "nodeBundle",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "nodeBundle"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_nodeStatus",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "nodeStatus",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "nodeStatus"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "start_to_load_node_instructions",
-      "source_node": {
-        "$component_ref": "start"
-      },
-      "source_output": "instructions",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "instructions"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_load_node_agent_run_id",
-      "source_node": {
-        "$component_ref": "start"
-      },
-      "source_output": "cinatra_run_id",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "agent_run_id"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_title",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "title",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "title"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_body",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "body",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "body"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_fieldValues",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "fieldValues",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "fieldValues"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "compose_change_to_load_node_proposedFields",
-      "source_node": {
-        "$component_ref": "compose_change"
-      },
-      "source_output": "proposedFields",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "proposedFields"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "file_page_to_load_node_artifactId",
+      "name": "file_page_to_read_reviewed_page_artifactId",
       "source_node": {
         "$component_ref": "file_page"
       },
       "source_output": "artifactId",
       "destination_node": {
-        "$component_ref": "load_node"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "artifactId"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "file_page_to_load_node_representationRevisionId",
+      "name": "page_review_gate_to_read_reviewed_page_reviewAnswer",
       "source_node": {
-        "$component_ref": "file_page"
+        "$component_ref": "page_review_gate"
       },
-      "source_output": "representationRevisionId",
+      "source_output": "pageReviewNote",
       "destination_node": {
-        "$component_ref": "load_node"
+        "$component_ref": "read_reviewed_page"
       },
-      "destination_input": "representationRevisionId"
+      "destination_input": "reviewAnswer"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "load_node_to_end_nodeId",
+      "name": "check_read_to_read_reviewed_page_title",
       "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "nodeId",
-      "destination_node": {
-        "$component_ref": "end"
-      },
-      "destination_input": "nodeId"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_end_changes",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "changes",
-      "destination_node": {
-        "$component_ref": "end"
-      },
-      "destination_input": "changes"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_emit_output_nodeId",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "nodeId",
-      "destination_node": {
-        "$component_ref": "emit_output"
-      },
-      "destination_input": "nodeId"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_emit_output_changes",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "changes",
-      "destination_node": {
-        "$component_ref": "emit_output"
-      },
-      "destination_input": "changes"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_error",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "error",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "error"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_emit_output_reason",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "reason",
-      "destination_node": {
-        "$component_ref": "emit_output"
-      },
-      "destination_input": "reason"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_end_reason",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "reason",
-      "destination_node": {
-        "$component_ref": "end"
-      },
-      "destination_input": "reason"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_load_node_nodeLanguage",
-      "source_node": {
-        "$component_ref": "read_node"
-      },
-      "source_output": "nodeLanguage",
-      "destination_node": {
-        "$component_ref": "load_node"
-      },
-      "destination_input": "nodeLanguage"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_settle_outcome_outcome",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "outcome",
-      "destination_node": {
-        "$component_ref": "settle_outcome"
-      },
-      "destination_input": "outcome"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_settle_outcome_reason",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "reason",
-      "destination_node": {
-        "$component_ref": "settle_outcome"
-      },
-      "destination_input": "reason"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "load_node_to_settle_outcome_changes",
-      "source_node": {
-        "$component_ref": "load_node"
-      },
-      "source_output": "changes",
-      "destination_node": {
-        "$component_ref": "settle_outcome"
-      },
-      "destination_input": "changes"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "compose_change_to_settle_outcome_proposedFields",
-      "source_node": {
-        "$component_ref": "compose_change"
-      },
-      "source_output": "proposedFields",
-      "destination_node": {
-        "$component_ref": "settle_outcome"
-      },
-      "destination_input": "proposedFields"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "read_node_to_settle_outcome_title",
-      "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "title",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "title"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_settle_outcome_body",
+      "name": "check_read_to_read_reviewed_page_body",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "body",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "body"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_settle_outcome_fieldValues",
+      "name": "check_read_to_read_reviewed_page_fieldValues",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
       },
       "source_output": "fieldValues",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "fieldValues"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_settle_outcome_error",
+      "name": "check_read_to_read_reviewed_page_address",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "check_read"
+      },
+      "source_output": "address",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "address"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_read_reviewed_page_error",
+      "source_node": {
+        "$component_ref": "check_read"
       },
       "source_output": "error",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "error"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "read_node_to_settle_outcome_nodeStatus",
+      "name": "start_to_read_reviewed_page_nodeId",
       "source_node": {
-        "$component_ref": "read_node"
+        "$component_ref": "start"
       },
-      "source_output": "nodeStatus",
+      "source_output": "nodeId",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_read_reviewed_page_nodeStatus",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "status",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "nodeStatus"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_settle_outcome_cinatra_run_id",
+      "name": "start_to_read_reviewed_page_cinatra_run_id",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "cinatra_run_id",
       "destination_node": {
-        "$component_ref": "settle_outcome"
+        "$component_ref": "read_reviewed_page"
       },
       "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_route_status_next",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "status",
+      "destination_node": {
+        "$component_ref": "route_status"
+      },
+      "destination_input": "next"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_draft_instanceId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_draft_nodeId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_draft_binding",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "binding",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "binding"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_draft_reviewedFields",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedFields",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "reviewedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_draft_reviewedSnapshot",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedSnapshot",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "reviewedSnapshot"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_draft_title",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_write_draft_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "write_draft"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_unpublished_instanceId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_unpublished_nodeId",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_page_to_write_unpublished_binding",
+      "source_node": {
+        "$component_ref": "read_page"
+      },
+      "source_output": "binding",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "binding"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_unpublished_reviewedFields",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedFields",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "reviewedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_unpublished_reviewedSnapshot",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedSnapshot",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "reviewedSnapshot"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_unpublished_title",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_write_unpublished_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_ok",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "ok",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "ok"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_code",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "code",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "code"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_applied",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "applied",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "applied"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_answerNodeId",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "answerNodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_revisionId",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "revision_id",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "revisionId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_draft_to_write_outcome_storedFields",
+      "source_node": {
+        "$component_ref": "write_draft"
+      },
+      "source_output": "fields",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "storedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_ok",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "ok",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "ok"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_code",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "code",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "code"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_applied",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "applied",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "applied"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_answerNodeId",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "answerNodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_revisionId",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "revision_id",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "revisionId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_unpublished_to_write_outcome_storedFields",
+      "source_node": {
+        "$component_ref": "write_unpublished"
+      },
+      "source_output": "fields",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "storedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_nodeId",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_instanceId",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "instanceId",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "instanceId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_title",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_body",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_fieldValues",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_write_outcome_status",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "status",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "status"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_outcome_reviewedFields",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedFields",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "reviewedFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_reviewed_page_to_write_outcome_reviewedRevisionId",
+      "source_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "source_output": "reviewedRevisionId",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "reviewedRevisionId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_write_outcome_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "write_outcome"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_route_write_next",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "next",
+      "destination_node": {
+        "$component_ref": "route_write"
+      },
+      "destination_input": "next"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_emit_output_nodeId",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_end_nodeId",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_emit_output_changes",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_end_changes",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_emit_output_reason",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_end_reason",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_emit_output_error",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "write_outcome_to_end_error",
+      "source_node": {
+        "$component_ref": "write_outcome"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "compose_change_to_no_change_outcome_writeFields",
+      "source_node": {
+        "$component_ref": "compose_change"
+      },
+      "source_output": "writeFields",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "writeFields"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_instructions",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instructions",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "instructions"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_no_change_outcome_title",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "title",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "title"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_no_change_outcome_body",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "body",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "body"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_no_change_outcome_fieldValues",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "fieldValues",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "fieldValues"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_no_change_outcome_error",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "check_read_to_no_change_outcome_nodeStatus",
+      "source_node": {
+        "$component_ref": "check_read"
+      },
+      "source_output": "status",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_cinatra_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "cinatra_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_nodeId",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_nodeId",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_changes",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_changes",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "changes",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "changes"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_reason",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_reason",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "reason",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_emit_output_error",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "emit_output"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "no_change_outcome_to_end_error",
+      "source_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "error"
     }
   ],
   "$referenced_components": {
@@ -831,44 +1864,190 @@
         }
       ]
     },
-    "read_node": {
+    "read_page": {
       "component_type": "ApiNode",
-      "id": "read_node",
+      "id": "read_page",
       "name": "Read the page",
-      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content reader. Read the specified node and hand its current values to the next step. You change nothing on the site.\n\n## Rules\n\n1. Call `drupal_node_get` first to read current content before any changes.\n\n## Steps\n\n**STEP 1 — Load node:** Call `drupal_node_get` with `instanceId` + `nodeId`. Capture the current value of every field the user might be editing.\n\n**STEP 2 — Compose the public address:** Call `drupal_instances_list` and take the item whose `id` equals `instanceId`. Take its `siteUrl`, remove every trailing slash, then append `/node/` and the node id. When no item matches, or the site address does not start with `https://`, the address is the empty string.\n\n## What each output field holds\n\n- `title` — the node's title as the read answers it.\n- `body` — the raw source markup of `body` exactly as the read answers it; the empty string when the read carries no `body`.\n- `fieldValues` — one item per field of the read whose name starts with `field_` and whose value is text: `field` is the field name and `value` its value as text.\n- `address` — the node's public address from STEP 2.\n- `nodeStatus` — from this actual read only: `published` for status true, 1, \"1\" or \"published\"; `draft` for false, 0, \"0\", \"unpublished\" or \"draft\"; `unknown` otherwise (including any failed read). Never copy a caller hint.\n- `nodeBundle` — the actual read's `bundle` string, or the empty string when absent or the read failed.\n- `nodeLanguage` — the actual read's `langcode` only, when it is a non-empty language code of letters, digits, underscores or hyphens; otherwise the empty string. Never copy a caller hint or guess the site default. A failed read always returns the empty string.\n- `error` — `code` and `message` are both the empty string on a successful read. When the read says the node does not exist, `code` is `not-found`; when the read fails in any other way, `code` is `read-failed`. `message` then states the failure in one sentence, `title` and `body` are empty strings and `fieldValues` is the empty list.\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instanceId` and `nodeId` from the most recent user message.\n\n## What to NEVER do\n\n- Never write to the site: this step only reads.\n- Never invent a field or a value: hand over only what the read answered.",
-        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n\nFollow the steps in the system instructions: read the node with drupal_node_get, compose its public address from drupal_instances_list, and fill the declared output fields.",
-        "agent_id": "drupal-content-editor",
-        "agent_run_id": "{{ agent_run_id }}",
-        "cinatra_llm": {
-          "preferredProvider": "openai",
-          "preferredModel": "gpt-5.5"
-        }
+        "tool": "drupal_node_read_for_edit",
+        "input": {
+          "instanceId": "{{ instanceId }}",
+          "nid": "{{ nodeId }}"
+        },
+        "agent_run_id": "{{ agent_run_id }}"
       },
       "inputs": [
         {
           "title": "instanceId",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "nodeId",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "agent_run_id",
-          "type": "string"
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
         {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nid",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "uuid",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "language",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "published",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "title": "fields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "binding",
+          "type": "object",
+          "default": {}
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent reads the page from the site, without a model: one call of the connector's read tool, drupal_node_read_for_edit, with the run's instance and node id, on the host's passthrough road. The connector reads the page through the Cinatra Drupal module and answers every editable field value and the module's binding of that read, which the write later uses to save only an unchanged page. This step writes nothing."
+        }
+      }
+    },
+    "check_read": {
+      "component_type": "ApiNode",
+      "id": "check_read",
+      "name": "Check the read",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "page",
+            "readNodeId": "{# pyagentspec-input-hint (do not remove): {{ readNodeId }} #}{{ readNodeId | tojson }}",
+            "readInstanceId": "{# pyagentspec-input-hint (do not remove): {{ readInstanceId }} #}{{ readInstanceId | tojson }}",
+            "nid": "{# pyagentspec-input-hint (do not remove): {{ nid }} #}{{ nid | tojson }}",
+            "language": "{# pyagentspec-input-hint (do not remove): {{ language }} #}{{ language | tojson }}",
+            "published": "{# pyagentspec-input-hint (do not remove): {{ published }} #}{{ published | tojson }}",
+            "fields": "{# pyagentspec-input-hint (do not remove): {{ fields }} #}{{ fields | tojson }}",
+            "binding": "{# pyagentspec-input-hint (do not remove): {{ binding }} #}{{ binding | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "instanceId": "{# pyagentspec-input-hint (do not remove): {{ instanceId }} #}{{ instanceId | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "readNodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "readInstanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nid",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "language",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "published",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "title": "fields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "binding",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "status",
+          "type": "string",
+          "default": ""
+        },
+        {
           "title": "title",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "body",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "fieldValues",
@@ -885,11 +2064,13 @@
                 }
               }
             }
-          }
+          },
+          "default": []
         },
         {
           "title": "address",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "error",
@@ -904,26 +2085,21 @@
                 "type": "string"
               }
             }
-          }
+          },
+          "default": {}
         },
         {
-          "title": "nodeStatus",
-          "type": "string"
-        },
-        {
-          "title": "nodeBundle",
-          "type": "string"
-        },
-        {
-          "title": "nodeLanguage",
-          "type": "string"
+          "title": "ok",
+          "type": "boolean",
+          "default": false
         }
       ],
       "metadata": {
         "cinatra": {
           "riskClass": "read_only",
           "requiresApproval": false,
-          "packageName": "@cinatra-ai/drupal-agent"
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent checks the read by code: only a read of the run's node on the run's instance, with a title and a binding, goes on to the proposal. It hands on the status, the title, the body and the field_ text values as read. Any other read ends the run here; nothing is proposed, filed or written."
         }
       }
     },
@@ -936,8 +2112,8 @@
       "data": {
         "agent_id": "drupal-content-editor",
         "toolbox_ids": [],
-        "system": "You are the Drupal change composer. No toolbox joins this turn: Do NOT call any MCP tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill three declared output fields: `pageTitle`, `proposedFields` and `pageForm`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `proposedFields` — one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change.\n- `pageForm` — the page snapshot's content form, by the rules below.\n\n## The page form\n\n- `cinatraCmsPage` is 1 and `system` is \"drupal\".\n- `page.title` is the title as read. `page.address` is the `address` the read step answered, or null when it is empty. `page.cmsAddress` is that address followed by `/edit`, or null when the address is empty. The form has no `readAt` key.\n- `excerpts` lists the changed blocks in page order, ONE entry per changed block and none for an unchanged one. `region` is the field the block lives in (`title`, `body` or the `field_` name).\n- The title is one block: region `title`, position 0, kind `heading`, level 1.\n- The value of every other field is split into its top-level blocks in document order by ONE rule: a heading element h1 to h6 is kind `heading` with its level; a paragraph is kind `paragraph`; every item of a list is its own block of kind `list-item`; a value without markup is one paragraph block at position 0. `level` is null for a block that is not a heading.\n- `position` is the block's zero-based index inside its region.\n- `published` is the block's plain words as read and `proposed` its plain words after the change, with every markup tag removed. An added block has `published` '' and a removed block `proposed` ''.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `excerpts` [] and `proposedFields` [].\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is:\n\n--- example form begin ---\n{\"cinatraCmsPage\":1,\"system\":\"drupal\",\"page\":{\"title\":\"Opening hours\",\"address\":\"https://www.example.org/node/7\",\"cmsAddress\":\"https://www.example.org/node/7/edit\"},\"excerpts\":[{\"region\":\"title\",\"position\":0,\"kind\":\"heading\",\"level\":1,\"published\":\"Opening hours\",\"proposed\":\"Opening hours and holidays\"},{\"region\":\"body\",\"position\":1,\"kind\":\"paragraph\",\"level\":null,\"published\":\"We open at nine on weekdays.\",\"proposed\":\"We open at eight on weekdays.\"},{\"region\":\"body\",\"position\":3,\"kind\":\"list-item\",\"level\":null,\"published\":\"Saturday: closed\",\"proposed\":\"Saturday: ten to two\"}]}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
-        "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the three declared output fields as the system instructions state.",
+        "system": "You are the Drupal change composer. No tool is served to this step: do not call any tool. You receive the node's current values as the read step answered them and the user's `instructions`, and you fill two declared output fields: `pageTitle` and `writeFields`. You write nothing to the site.\n\n## Rules\n\n1. Apply only changes explicitly requested. Do not touch fields not mentioned by the user.\n2. Compare every requested change (each instruction, or each reviewer finding on a repair-shaped task) against the values the read step answered. A field whose requested value already EXACTLY equals its current value needs no change; a request or finding too vague to translate into a concrete field change safely is not actionable (Rule 1 — never guess).\n3. Repair-shaped tasks: when `instructions` describe reviewer findings on a change already proposed for this node, the findings ARE the request. If a finding names a specific field or region (e.g. \"the title\", \"the second paragraph\"), scope your change to that field. Apply only what the findings ask for.\n\n## What each output field holds\n\n- `pageTitle` — the node's title as read.\n- `writeFields` — the values the write step writes. The next step builds the page snapshot a person reviews from these values and the read, and after the review the write step writes exactly the reviewed values and no other. `writeFields.fields` has one item per field the change touches: `field` is `title`, `body` or a `field_` name the read returned, and `value` is the complete new value of that field (for `body`, the complete new source markup). No item for a field the change does not touch, and never an empty value for a field the instructions did not ask to change. `writeFields.publish` is true only when the user's `instructions` explicitly ask to publish the node, and false otherwise; a reviewer finding is never a publish request. This agent never publishes: a request to publish ends the run before the review, and the person is told to publish on the site.\n- A read that failed (the read step's `error.code` is not empty) or a change that touches nothing answers `writeFields.fields` []; after a failed read `writeFields.publish` is false. When nothing needs to change and no publish is asked, the run ends without a review and nothing is written.\n- Keep every unchanged block of a value exactly as read, white space included. The review shows each changed block as its source text, markup and link targets included; a block that changes only in its white space cannot be shown, and the next step refuses it before the review.\n\n## Example\n\nThe title and two blocks of the body change; every other block stays as it is. `writeFields` carries the new title and the whole new body:\n\n--- example form begin ---\n{\"fields\":[{\"field\":\"title\",\"value\":\"Opening hours and holidays\"},{\"field\":\"body\",\"value\":\"<h2>When we open</h2><p>We open at eight on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: ten to two</li></ul>\"}],\"publish\":false}\n--- example form end ---\n\n## How inputs arrive\n\nInputs are injected via the flow conversation history. Read `instructions`, `title`, `body`, `fieldValues`, `address` and `error` from the most recent user message.",
+        "user": "Inputs:\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- address: {{ address }}\n- error: {{ error }}\n\nApply only the requested change and fill the two declared output fields as the system instructions state.",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -1004,7 +2180,105 @@
           "type": "string"
         },
         {
-          "title": "proposedFields",
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "tools": []
+        }
+      }
+    },
+    "form_page": {
+      "component_type": "ApiNode",
+      "id": "form_page",
+      "name": "Build the page snapshot",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "form",
+            "writeFields": "{# pyagentspec-input-hint (do not remove): {{ writeFields }} #}{{ writeFields | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "address": "{# pyagentspec-input-hint (do not remove): {{ address }} #}{{ address | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "body",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "fieldValues",
           "type": "array",
           "json_schema": {
             "items": {
@@ -1018,8 +2292,47 @@
                 }
               }
             }
-          }
+          },
+          "default": []
         },
+        {
+          "title": "address",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
         {
           "title": "pageForm",
           "type": "object",
@@ -1035,6 +2348,16 @@
               "page": {
                 "type": "object",
                 "properties": {
+                  "nodeId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "draft"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -1049,6 +2372,28 @@
                       "string",
                       "null"
                     ]
+                  }
+                }
+              },
+              "writeFields": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "publish": {
+                    "type": "boolean"
                   }
                 }
               },
@@ -1087,15 +2432,52 @@
                 }
               }
             }
-          }
+          },
+          "default": {}
+        },
+        {
+          "title": "next",
+          "type": "string",
+          "description": "no_change when the values change nothing and ask for no publish; review otherwise.",
+          "default": "review"
+        },
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": false
         }
       ],
       "metadata": {
         "cinatra": {
           "riskClass": "read_only",
           "requiresApproval": false,
-          "packageName": "@cinatra-ai/drupal-agent"
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent builds the page snapshot in code from the read and the values to write: each changed block the review shows is its source text, derived from those values. A change the snapshot cannot show, such as a change of white space alone, a request to publish, or a change too large to send to the site, ends the run here and nothing is filed or written; so does a read that was not successful. A change of nothing takes the run to its end without a review."
         }
+      }
+    },
+    "route_change": {
+      "component_type": "BranchingNode",
+      "id": "route_change",
+      "name": "Branch on a change of nothing",
+      "metadata": {
+        "cinatra": {
+          "purpose": "route-a-change-of-nothing-past-the-filing-and-the-review"
+        }
+      },
+      "inputs": [
+        {
+          "title": "next",
+          "type": "string"
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "default",
+        "no_change"
+      ],
+      "mapping": {
+        "no_change": "no_change"
       }
     },
     "file_page": {
@@ -1137,6 +2519,16 @@
               "page": {
                 "type": "object",
                 "properties": {
+                  "nodeId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "draft"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -1151,6 +2543,28 @@
                       "string",
                       "null"
                     ]
+                  }
+                }
+              },
+              "writeFields": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "publish": {
+                    "type": "boolean"
                   }
                 }
               },
@@ -1310,6 +2724,11 @@
           "title": "reviewTargets",
           "type": "string",
           "default": "[]"
+        },
+        {
+          "title": "reviewNotice",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
@@ -1319,54 +2738,51 @@
         }
       ]
     },
-    "load_node": {
+    "read_reviewed_page": {
       "component_type": "ApiNode",
-      "id": "load_node",
-      "name": "Load + edit node",
-      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "id": "read_reviewed_page",
+      "name": "Read the reviewed page snapshot",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
       "http_method": "POST",
       "data": {
-        "system": "You are the Drupal content editor. Apply only the user's requested fields to the specified node after the page snapshot's human review. The read step supplies title, body, fieldValues, nodeStatus, nodeBundle, nodeLanguage and error from drupal_node_get. Caller status and bundle hints are not authority.\n\n## Rules\n\n1. Never write when error.code is non-empty or nodeStatus is unknown. Return a REFUSAL RESULT with the actual reason. Do not guess a status, bundle, field or value.\n2. Compare requested values against the read values before any content write. If no concrete field differs, make NO content write (including no draft creation) and return the NO-CHANGE RESULT. A reviewer finding is never a publish request. An explicit user publish request remains allowed through drupal_node_publish, even without a field edit.\n3. Apply only the fields explicitly requested; build fields from proposedFields. Never include an empty string for a field that was not requested. The existing review step and connector's CMS review/write-authority gates remain mandatory.\n4. A published node is edited through ONE atomic call to drupal_node_create_draft_revision with instanceId + nodeId + fields + language: nodeLanguage + expectedFields. Build expectedFields only from the actual earlier read, for exactly the fields being edited. It compares against the module preimage and grants no write authority. If a requested field changed while human review ran, honor the refusal, make no retry and ask for a fresh read/review through the ordinary flow. A published edit requires the non-empty language from the actual read; never guess the site default. The connector discovers the site's authorized protected non-published/non-default moderation state and saves approved fields on a revision of the SAME node. Never call drupal_node_update after a draft call: the generic update addresses the live default node, not that protected revision. Never create a new node as a fallback.\n5. Only a node actually read as draft can use drupal_node_update with instanceId + nodeId + fields. A caller hint cannot make a published node writable. If a fresh connector read disagrees, honor its refusal.\n6. Without the released Cinatra Drupal module tools, readable preimage, a Content Moderation workflow, an authorized unpublished non-default transition, or exact language-bound revision reading, the connector refuses BEFORE dispatching its writer. State its actual reason plainly. Update the existing Cinatra module and deliberately expose its tools through the site's maintained MCP profile; a separate new page is allowed only by the person's independent explicit choice. Never fall back to a live edit, a stray new node, direct REST, or unsupported revision selector arguments.\n7. A tool error, pending_review, rejected review, or unavailable/failed readback is not a successful saved edit. Stop, preserve the actual reason in a REFUSAL RESULT, and never manufacture changes, a saved revision identifier, proposalId or success. Only an actual successful verified write permits a diff. For a published edit its before-values come from the actual bound pendingDraft.beforeFields; the earlier read is only the expectedFields comparison. After-values must match independently read saved fields, not merely echo requested values. Unpublished before-values still use the supplied read step.\n8. The successful published result carries pendingDraft.fields from an independent exact-revision read, and pendingDraft.revisionId matching revision_id. Inspect both before reporting a saved edit. For each changed text field, take before from pendingDraft.beforeFields[field] and after from pendingDraft.fields[field], each a single stored item.value. Never use the earlier generic read as a published before-value, or proposedFields/the write request as an after-value. Keep format and summary as stored metadata; do not invent their values. Missing or non-text stored values prevent a text diff and require a visible reason. The final output has only the declared nodeId, changes, reason and outcome: do not mint undeclared proposalId or changeSetId fields. Never reuse a proposalId from an earlier diff, and never invent a revision identifier.\n9. A failure after writer dispatch may mean a draft was saved. Preserve the tool's inspection-required or uncertain outcome in reason; make no retry, generic update, publish call or success claim. Never claim \"No content was written\" after writer dispatch unless the actual result proves rollback. Do not replace uncertainty with the before-write refusal example.\n10. The declared outcome is always one of saved, no_change or refused (see The outcome below). A tool error or a tool denial is always refused, with a non-empty reason.\n\n## Repair-shaped tasks\n\nReviewer findings are the request. Apply only the named fields or regions. A vague or already satisfied finding needs no content write. Do not broaden a repair into unrelated changes. The same comparison guard, human review, protected atomic draft path and refusal rules apply. Never publish because a reviewer finding asks for a correction; drupal_node_publish needs the user's explicit publish request.\n\n## Steps\n\nSTEP 1 — The page has already been read and the proposed page snapshot filed and reviewed. Use only the supplied read values and reviewed proposedFields; honor error and unknown status.\nSTEP 2 — Compare fields. If none needs changing, make no content write. Otherwise, for published call drupal_node_create_draft_revision once with instanceId, nodeId, fields, language: nodeLanguage and expectedFields built from the actual read values of exactly those requested fields; refuse an empty nodeLanguage without a content write; for draft call drupal_node_update once with instanceId, nodeId and fields. No draft-then-update sequence.\nSTEP 3 — Inspect the actual result. Held, refused, failed, or unverified writes return a reason and no diff. Do not report a pending review as success. The supported published route requires independent exact-revision MCP readback before success. Publishing is never automatic: call drupal_node_publish only on an explicit user publish request and only if preceding required operations succeeded.\nSTEP 4 — Return the declared JSON nodeId, changes, reason and outcome. The reason is empty on success and on an ordinary no-change result. On a successful field edit, include only actual changed fields with the bound module before-values for published edits (the supplied read for unpublished edits) and independently confirmed after-values; use pendingDraft.fields for published after-values and retain the actual tool revision only as its correlation, without adding undeclared output fields.\n\n## The outcome\n\nThe declared outcome is required and is exactly one of these three values.\n- saved: an actual, verified write (a field edit with its diff, or an explicitly requested publication that succeeded). The reason is empty.\n- no_change: no content write was needed because the reviewed proposedFields is empty, or each proposed field already equals its value in the supplied read. changes is [] and the reason is empty. A reviewed proposal with a field that differs from the read is never no_change.\n- refused: every other case. A tool error, a tool denial or refusal, pending_review, a rejected review, a failed or unverified readback, an uncertain outcome after writer dispatch, a read error or unknown status, and a reviewed proposal with a differing field that saved nothing are always refused. changes is [] and the reason states the actual cause in one sentence; it is never empty.\nThe next step checks this outcome against the reviewed proposal and the read. A refused outcome, or a no_change or saved answer that the proposal and the read do not support, ends the run as failed with the reason.\n\nSUCCESSFUL EDIT: {\"nodeId\":\"7\",\"changes\":[{\"field\":\"title\",\"before\":\"Old\",\"after\":\"New\"}],\"reason\":\"\",\"outcome\":\"saved\"}\nBEFORE-WRITE REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"The site cannot safely save and read a protected draft revision of this published page. No content was written.\",\"outcome\":\"refused\"}\nAFTER-DISPATCH REFUSAL RESULT: {\"nodeId\":\"7\",\"changes\":[],\"reason\":\"A draft may have been saved; inspection required because the exact stored revision could not be verified.\",\"outcome\":\"refused\"}\nThe NO-CHANGE RESULT has outcome no_change, changes [] and an empty reason. It is allowed only when the no_change condition above holds, and it is never a default answer.\n\nNever pad changes with a no-op, and never attach a proposalId or changeSetId to a refusal or no-change result. An explicit publish-only request yields no field diff; retain changes:[]; its outcome is saved when the publication succeeded, and refused with the failure in reason when publication was refused. Never hide a refusal as an ordinary no-change result.\n",
-        "user": "Inputs:\n- instanceId: {{ instanceId }}\n- nodeId: {{ nodeId }}\n- nodeBundle: {{ nodeBundle }}\n- nodeStatus: {{ nodeStatus }}\n- nodeLanguage: {{ nodeLanguage }}\n- instructions: {{ instructions }}\n- title: {{ title }}\n- body: {{ body }}\n- fieldValues: {{ fieldValues }}\n- proposedFields: {{ proposedFields }}\n- artifactId: {{ artifactId }}\n- representationRevisionId: {{ representationRevisionId }}\n- error: {{ error }}\n\nFollow the atomic edit and refusal rules. Status and bundle above come from the actual node read. Published fields use one drupal_node_create_draft_revision call with fields, language: nodeLanguage and expectedFields from the supplied actual read values; never a following generic update. Return nodeId, changes, reason and outcome as declared.",
-        "agent_id": "drupal-content-editor",
-        "agent_run_id": "{{ agent_run_id }}",
-        "cinatra_llm": {
-          "preferredProvider": "openai",
-          "preferredModel": "gpt-5.5"
-        }
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "read",
+            "artifactId": "{{ artifactId }}",
+            "reviewAnswer": "{# pyagentspec-input-hint (do not remove): {{ reviewAnswer }} #}{{ reviewAnswer | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "address": "{# pyagentspec-input-hint (do not remove): {{ address }} #}{{ address | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
       },
       "inputs": [
         {
-          "title": "instanceId",
-          "type": "string"
+          "title": "artifactId",
+          "type": "string",
+          "default": ""
         },
         {
-          "title": "nodeId",
-          "type": "string"
-        },
-        {
-          "title": "nodeBundle",
-          "type": "string"
-        },
-        {
-          "title": "nodeStatus",
-          "type": "string"
-        },
-        {
-          "title": "nodeLanguage",
-          "type": "string"
-        },
-        {
-          "title": "instructions",
-          "type": "string"
+          "title": "reviewAnswer",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "title",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "body",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "fieldValues",
@@ -1383,36 +2799,18 @@
                 }
               }
             }
-          }
+          },
+          "default": []
         },
         {
-          "title": "proposedFields",
-          "type": "array",
-          "json_schema": {
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              }
-            }
-          }
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
         },
         {
-          "title": "artifactId",
-          "type": "string"
-        },
-        {
-          "title": "representationRevisionId",
-          "type": "string"
-        },
-        {
-          "title": "agent_run_id",
-          "type": "string"
+          "title": "address",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "error",
@@ -1427,54 +2825,222 @@
                 "type": "string"
               }
             }
-          }
+          },
+          "default": {}
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
         {
-          "title": "nodeId",
-          "type": "string"
+          "title": "reviewedFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "default": {}
         },
         {
-          "title": "changes",
+          "title": "reviewedRevisionId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "reviewedSnapshot",
           "type": "array",
           "json_schema": {
+            "type": "array",
+            "maxItems": 1,
             "items": {
               "type": "object",
               "properties": {
-                "field": {
+                "artifactId": {
                   "type": "string"
                 },
-                "before": {
-                  "type": "string"
-                },
-                "after": {
+                "representationRevisionId": {
                   "type": "string"
                 }
-              }
+              },
+              "required": [
+                "artifactId",
+                "representationRevisionId"
+              ]
             }
-          }
+          },
+          "default": []
         },
         {
-          "title": "reason",
-          "type": "string"
-        },
+          "title": "ok",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent reads back the page snapshot revision the person approved, the one the review's answer names, by its revision id and never the latest revision. The values the write sends come from this text only, as one object of the changed fields; without a usable reviewed change the run ends here and nothing is written. It also derives the shown blocks again from those values and the read, and ends the run when the reviewed text shows other words, or is not a snapshot of this run's node."
+        }
+      }
+    },
+    "route_status": {
+      "component_type": "BranchingNode",
+      "id": "route_status",
+      "name": "Branch on the status as read",
+      "metadata": {
+        "cinatra": {
+          "purpose": "choose-the-write-by-the-status-as-read"
+        }
+      },
+      "inputs": [
         {
-          "title": "outcome",
+          "title": "next",
           "type": "string",
-          "description": "saved, no_change or refused. saved: an actual verified write. no_change: only when the reviewed proposedFields is empty or each proposed field equals its value in the read. refused: every tool error, denial or other edit that was not saved, always with a non-empty reason.",
+          "default": ""
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "default",
+        "published",
+        "draft"
+      ],
+      "mapping": {
+        "published": "published",
+        "draft": "draft"
+      }
+    },
+    "write_draft": {
+      "component_type": "ApiNode",
+      "id": "write_draft",
+      "name": "write_draft",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "drupal_node_create_draft_revision",
+        "input": {
+          "instanceId": "{{ instanceId }}",
+          "nodeId": "{{ nodeId }}",
+          "fieldsJson": "{# pyagentspec-input-hint (do not remove): {{ reviewedFields }} {{ reviewedSnapshot }} {{ title }} #}{{ reviewedFields | tojson }}",
+          "expectedBindingJson": "{# pyagentspec-input-hint (do not remove): {{ binding }} #}{{ binding | tojson }}"
+        },
+        "agent_run_id": "{{ agent_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "binding",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "reviewedFields",
+          "type": "object",
           "json_schema": {
-            "enum": [
-              "saved",
-              "no_change",
-              "refused"
-            ]
-          }
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "reviewedSnapshot",
+          "type": "array",
+          "json_schema": {
+            "type": "array",
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string"
+                },
+                "representationRevisionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactId",
+                "representationRevisionId"
+              ]
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "title": "code",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "message",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "revision_id",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "fields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "applied",
+          "type": "boolean",
+          "default": false
         }
       ],
       "metadata": {
         "cinatra": {
           "riskClass": "write",
+          "requiresApproval": false,
           "publishes": true,
           "publishRows": [
             {
@@ -1482,93 +3048,263 @@
               "input": "instanceId"
             },
             {
-              "label": "Node",
-              "input": "nodeId"
-            },
-            {
-              "label": "Current title",
+              "label": "Page title as read",
               "input": "title"
             },
             {
-              "kind": "list",
-              "label": "Fields to write",
-              "input": "proposedFields",
-              "columns": [
-                {
-                  "label": "Field",
-                  "field": "field"
-                },
-                {
-                  "label": "New value",
-                  "field": "value"
-                }
-              ]
+              "label": "Node id (saved as a draft revision; live page unchanged)",
+              "input": "nodeId"
+            },
+            {
+              "kind": "artifacts",
+              "label": "Reviewed change",
+              "input": "reviewedSnapshot"
             }
           ],
-          "requiresApproval": false,
-          "packageName": "@cinatra-ai/drupal-agent"
+          "confirmations": [
+            {
+              "tool": "drupal_node_create_draft_revision",
+              "decision": "publish"
+            }
+          ],
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "One of the flow's two publishing steps, for a page read as published: one model-free call of the connector's drupal_node_create_draft_revision on the host's passthrough road, which saves the reviewed change as an unpublished draft revision of the same node; the live page stays as it is until a person publishes that draft on the site. Saving to the site is an external write, so the application stops the run in front of this step and shows its publish card (the site, the title as read, the node id and the reviewed page snapshot revision); the run reaches the step only after the person chose to save. Every argument is a template over this step's inputs and each input comes by one data edge: the instance, the node id and the binding from the read step, exactly as the connector answered them; the values to save (one object of the changed fields) and the reviewed revision from the read-back of the revision the person approved. The binding and the values are each rendered whole with tojson. No model writes an argument. The Cinatra module saves only if the page is unchanged since that read; else the connector refuses with a code and nothing is saved. The step returns the connector's answer."
         }
       }
     },
-    "settle_outcome": {
+    "write_unpublished": {
       "component_type": "ApiNode",
-      "id": "settle_outcome",
-      "name": "Settle the write outcome",
+      "id": "write_unpublished",
+      "name": "write_unpublished",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "drupal_node_update",
+        "input": {
+          "instanceId": "{{ instanceId }}",
+          "nodeId": "{{ nodeId }}",
+          "fieldsJson": "{# pyagentspec-input-hint (do not remove): {{ reviewedFields }} {{ reviewedSnapshot }} {{ title }} #}{{ reviewedFields | tojson }}",
+          "expectedBindingJson": "{# pyagentspec-input-hint (do not remove): {{ binding }} #}{{ binding | tojson }}"
+        },
+        "agent_run_id": "{{ agent_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "binding",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "reviewedFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "reviewedSnapshot",
+          "type": "array",
+          "json_schema": {
+            "type": "array",
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string"
+                },
+                "representationRevisionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactId",
+                "representationRevisionId"
+              ]
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "title": "code",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "message",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "revision_id",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "fields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "applied",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "write",
+          "requiresApproval": false,
+          "publishes": true,
+          "publishRows": [
+            {
+              "label": "Drupal site",
+              "input": "instanceId"
+            },
+            {
+              "label": "Page title as read",
+              "input": "title"
+            },
+            {
+              "label": "Node id (unpublished: saved, not published)",
+              "input": "nodeId"
+            },
+            {
+              "kind": "artifacts",
+              "label": "Reviewed change",
+              "input": "reviewedSnapshot"
+            }
+          ],
+          "confirmations": [
+            {
+              "tool": "drupal_node_update",
+              "decision": "publish"
+            }
+          ],
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "One of the flow's two publishing steps, for a page read as unpublished: one model-free call of the connector's drupal_node_update on the host's passthrough road, which saves the reviewed change to the unpublished page and does not publish it. Saving to the site is an external write, so the application stops the run in front of this step and shows its publish card (the site, the title as read, the node id and the reviewed page snapshot revision); the run reaches the step only after the person chose to save. Every argument is a template over this step's inputs and each input comes by one data edge: the instance, the node id and the binding from the read step, exactly as the connector answered them; the values to save (one object of the changed fields) and the reviewed revision from the read-back of the revision the person approved. The binding and the values are each rendered whole with tojson. No model writes an argument. The Cinatra module saves only if the page is unchanged since that read; else the connector refuses with a code and nothing is saved. The step returns the connector's answer."
+        }
+      }
+    },
+    "write_outcome": {
+      "component_type": "ApiNode",
+      "id": "write_outcome",
+      "name": "Read the answer to the save",
       "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
       "http_method": "POST",
       "data": {
         "tool": "extension_tool",
         "input": {
-          "name": "settle_outcome",
+          "name": "reviewed_change",
           "input": {
-            "op": "settle",
-            "outcome": "{# pyagentspec-input-hint (do not remove): {{ outcome }} #}{{ outcome | tojson }}",
-            "reason": "{# pyagentspec-input-hint (do not remove): {{ reason }} #}{{ reason | tojson }}",
-            "changes": "{# pyagentspec-input-hint (do not remove): {{ changes }} #}{{ changes | tojson }}",
-            "proposedFields": "{# pyagentspec-input-hint (do not remove): {{ proposedFields }} #}{{ proposedFields | tojson }}",
+            "op": "outcome",
+            "ok": "{# pyagentspec-input-hint (do not remove): {{ ok }} #}{{ ok | tojson }}",
+            "code": "{# pyagentspec-input-hint (do not remove): {{ code }} #}{{ code | tojson }}",
+            "applied": "{# pyagentspec-input-hint (do not remove): {{ applied }} #}{{ applied | tojson }}",
+            "answerNodeId": "{# pyagentspec-input-hint (do not remove): {{ answerNodeId }} #}{{ answerNodeId | tojson }}",
+            "revisionId": "{# pyagentspec-input-hint (do not remove): {{ revisionId }} #}{{ revisionId | tojson }}",
+            "storedFields": "{# pyagentspec-input-hint (do not remove): {{ storedFields }} #}{{ storedFields | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "instanceId": "{# pyagentspec-input-hint (do not remove): {{ instanceId }} #}{{ instanceId | tojson }}",
             "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
             "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
-            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
-            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}"
+            "status": "{# pyagentspec-input-hint (do not remove): {{ status }} #}{{ status | tojson }}",
+            "reviewedFields": "{# pyagentspec-input-hint (do not remove): {{ reviewedFields }} #}{{ reviewedFields | tojson }}",
+            "reviewedRevisionId": "{# pyagentspec-input-hint (do not remove): {{ reviewedRevisionId }} #}{{ reviewedRevisionId | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
       },
       "inputs": [
         {
-          "title": "outcome",
+          "title": "ok",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "title": "code",
           "type": "string",
           "default": ""
         },
         {
-          "title": "reason",
+          "title": "applied",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "title": "answerNodeId",
           "type": "string",
           "default": ""
         },
         {
-          "title": "changes",
-          "type": "array",
-          "json_schema": {
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "before": {
-                  "type": "string"
-                },
-                "after": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "default": []
+          "title": "revisionId",
+          "type": "integer",
+          "default": 0
         },
         {
-          "title": "proposedFields",
+          "title": "storedFields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "instanceId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "title",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "body",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "fieldValues",
           "type": "array",
           "json_schema": {
             "items": {
@@ -1584,6 +3320,207 @@
             }
           },
           "default": []
+        },
+        {
+          "title": "status",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "reviewedFields",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "reviewedRevisionId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "cinatra_run_id",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [
+        {
+          "title": "next",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "reason",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "reviewNotice",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "ok",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/drupal-agent",
+          "description": "The agent reads the connector's answer to the save by code and builds the run's output: on a save, each saved field with its value before and the value the site stored; on node_changed, the way back to the read and a notice for the next review; on any other refusal, its code and a plain message. An answer that is neither ends the run with the advice to check the page on the site."
+        }
+      }
+    },
+    "route_write": {
+      "component_type": "BranchingNode",
+      "id": "route_write",
+      "name": "Branch on the answer to the save",
+      "metadata": {
+        "cinatra": {
+          "purpose": "route-the-answer-to-the-save"
+        }
+      },
+      "inputs": [
+        {
+          "title": "next",
+          "type": "string",
+          "default": ""
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "default",
+        "written",
+        "node_changed",
+        "pending_revision",
+        "permission_denied",
+        "invalid_input",
+        "refused",
+        "write_unverified",
+        "invalid_binding",
+        "wrong_page_state",
+        "module_capability_missing",
+        "read_unavailable"
+      ],
+      "mapping": {
+        "written": "written",
+        "node_changed": "node_changed",
+        "pending_revision": "pending_revision",
+        "permission_denied": "permission_denied",
+        "invalid_input": "invalid_input",
+        "refused": "refused",
+        "write_unverified": "write_unverified",
+        "invalid_binding": "invalid_binding",
+        "wrong_page_state": "wrong_page_state",
+        "module_capability_missing": "module_capability_missing",
+        "read_unavailable": "read_unavailable"
+      }
+    },
+    "no_change_outcome": {
+      "component_type": "ApiNode",
+      "id": "no_change_outcome",
+      "name": "End a change of nothing",
+      "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
+      "http_method": "POST",
+      "data": {
+        "tool": "extension_tool",
+        "input": {
+          "name": "reviewed_change",
+          "input": {
+            "op": "unchanged",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "writeFields": "{# pyagentspec-input-hint (do not remove): {{ writeFields }} #}{{ writeFields | tojson }}",
+            "instructions": "{# pyagentspec-input-hint (do not remove): {{ instructions }} #}{{ instructions | tojson }}",
+            "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
+            "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}"
+          }
+        },
+        "agent_run_id": "{{ cinatra_run_id }}"
+      },
+      "inputs": [
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "writeFields",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "publish": {
+                "type": "boolean"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "instructions",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "title",
@@ -1642,6 +3579,53 @@
       ],
       "outputs": [
         {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "changes",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "reason",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
           "title": "ok",
           "type": "boolean",
           "default": false
@@ -1652,7 +3636,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent settles the write step's outcome against the reviewed proposal and the read: a refused outcome, or an answer the proposal and the read do not support, ends the run as failed."
+          "description": "The agent ends a change of nothing: it checks again that the values change nothing and ask for no publish, and answers the node with no changes and a fixed reason that repeats the request and says that nothing was reviewed or written."
         }
       }
     },
@@ -1688,9 +3672,25 @@
         {
           "title": "reason",
           "type": "string"
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
         }
       ],
-      "message": "{# {{ nodeId }} {{ changes }} {{ reason }} #}{\"nodeId\":{{ nodeId | tojson }},\"changes\":{{ changes | tojson }},\"reason\":{{ reason | tojson }}}"
+      "message": "{# {{ nodeId }} {{ changes }} {{ reason }} {{ error }} #}{\"nodeId\":{{ nodeId | tojson }},\"changes\":{{ changes | tojson }},\"reason\":{{ reason | tojson }},\"error\":{{ error | tojson }}}"
     },
     "end": {
       "component_type": "EndNode",
@@ -1724,6 +3724,22 @@
         {
           "title": "reason",
           "type": "string"
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
         }
       ]
     }
