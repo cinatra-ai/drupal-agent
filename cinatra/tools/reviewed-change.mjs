@@ -898,11 +898,12 @@ async function read(call, ports) {
 //
 // A publishing step sends the reviewed values whole as `fieldsJson`, the JSON
 // text of one object (field name to new value), rendered by the flow's
-// `tojson`: keys sorted, every character outside ASCII and the characters
-// < > & ' written as \u escapes. The connector takes such a text of at most
-// 256 KiB (drupal-mcp-connector JSON_ARGUMENT_MAX_BYTES) and refuses a longer
-// one. So a change whose text would be longer is refused here, before it is
-// filed and again at the read-back, and nothing is sent.
+// `tojson` (`tojsonText` below), and the binding as the text of the read's
+// binding. The connector takes each such text of at most 256 KiB in UTF-8
+// (drupal-mcp-connector JSON_ARGUMENT_MAX_BYTES) and refuses a longer one. So
+// a change whose text would be longer is refused before it is filed and again
+// at the read-back, and a binding whose text would be longer is refused at the
+// check of the read, before anything is proposed; nothing is sent.
 // ---------------------------------------------------------------------------
 
 /** The most bytes of a JSON text argument the connector takes. */
@@ -913,24 +914,62 @@ function fieldsObject(fields) {
   return Object.fromEntries(fields.map((item) => [item.field, item.value]));
 }
 
-/** The bytes of the JSON text the flow's `tojson` renders for `value`. */
-export function sentBytes(value) {
-  const sorted = (v) =>
-    Array.isArray(v)
-      ? v.map(sorted)
-      : isPlainObject(v)
-        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])]))
-        : v;
-  // Each UTF-16 unit outside ASCII becomes a six-byte \uXXXX escape, and so
-  // do < > & '; JSON.stringify already escapes quotes, backslashes and
-  // control characters.
-  const text = JSON.stringify(sorted(value));
-  let bytes = 0;
+/** Python's json.dumps escape of one string, ASCII output (`ensure_ascii`), as `tojson` writes it. */
+function pythonJsonString(text) {
+  const SHORT = { 0x22: '\\"', 0x5c: "\\\\", 0x08: "\\b", 0x0c: "\\f", 0x0a: "\\n", 0x0d: "\\r", 0x09: "\\t" };
+  let out = '"';
   for (let i = 0; i < text.length; i += 1) {
     const unit = text.charCodeAt(i);
-    bytes += unit > 0x7e || unit === 0x3c || unit === 0x3e || unit === 0x26 || unit === 0x27 ? 6 : 1;
+    if (SHORT[unit] !== undefined) out += SHORT[unit];
+    else if (unit >= 0x20 && unit <= 0x7e) out += text[i];
+    // Every other UTF-16 unit, so each half of a character outside the BMP,
+    // becomes \u and four lower-case hex digits.
+    else out += `\\u${unit.toString(16).padStart(4, "0")}`;
   }
-  return bytes;
+  return `${out}"`;
+}
+
+/** Python's repr of a number as json.dumps writes it. */
+function pythonJsonNumber(value) {
+  if (!Number.isFinite(value)) refuse("a value to send is not a finite number", "start a new run");
+  // A whole number arrives as a Python int; JSON text read here cannot tell
+  // 1.0 from 1, so a whole number is written as an int.
+  if (Number.isInteger(value)) return BigInt(value).toString();
+  const [mantissa, exponentText] = value.toExponential().split("e");
+  const exponent = Number(exponentText);
+  if (exponent >= -4 && exponent < 16) return String(value);
+  const sign = exponent < 0 ? "-" : "+";
+  return `${mantissa}e${sign}${String(Math.abs(exponent)).padStart(2, "0")}`;
+}
+
+/**
+ * THE TEXT A `{{ value | tojson }}` ARGUMENT RENDERS TO in the flow runtime
+ * (wayflowcore 26.1.2: an ApiNode's data is rendered by
+ * `render_str_template`, `_utils/_templating_helpers.py:482-492`, which sets
+ * `json.dumps_kwargs` to `{"sort_keys": False}`; Jinja 3.1 `do_tojson` calls
+ * `htmlsafe_json_dumps`, `jinja2/utils.py:637-673`). So: Python's
+ * `json.dumps` with its defaults (separators ", " and ": ", `ensure_ascii`,
+ * keys in the order the value holds them), then each < > & ' written as
+ * \u003c, \u003e, \u0026 and \u0027. The pre-checks and the tests both
+ * render with this one function.
+ */
+export function tojsonText(value) {
+  const dumps = (v) => {
+    if (v === null) return "null";
+    if (v === true) return "true";
+    if (v === false) return "false";
+    if (typeof v === "string") return pythonJsonString(v);
+    if (typeof v === "number") return pythonJsonNumber(v);
+    if (Array.isArray(v)) return `[${v.map(dumps).join(", ")}]`;
+    if (isPlainObject(v)) return `{${Object.entries(v).map(([k, item]) => `${pythonJsonString(k)}: ${dumps(item)}`).join(", ")}}`;
+    return refuse("a value to send is not JSON", "start a new run");
+  };
+  return dumps(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/'/g, "\\u0027");
+}
+
+/** The UTF-8 bytes of the text `tojson` renders for `value`: the size the connector measures. */
+export function sentBytes(value) {
+  return new TextEncoder().encode(tojsonText(value)).length;
 }
 
 /** Refuses values whose JSON text, as the publishing step sends it, is longer than the connector takes. */
@@ -997,6 +1036,10 @@ function page(call) {
   const binding = jsonValue(call.binding);
   if (!isPlainObject(binding) || Object.keys(binding).length === 0) {
     no("the read answered no binding, which the write needs to save only an unchanged page");
+  }
+  const bindingBytes = sentBytes(binding);
+  if (bindingBytes > SEND_MAX_BYTES) {
+    no(`the read's binding, as the JSON text the write sends, takes ${bindingBytes} bytes, more than the ${SEND_MAX_BYTES} bytes the Drupal connector takes`);
   }
   const fieldValues = Object.entries(fields)
     .filter(([name, value]) => name.startsWith("field_") && typeof value === "string")

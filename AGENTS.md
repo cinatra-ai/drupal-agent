@@ -139,8 +139,13 @@ request flattened to one line and cut to 300 characters.
 `form_page` calls `reviewed_change` (`op: form`), which builds the page
 snapshot in code: the page, `writeFields` and the changed blocks the display
 shows (`excerpts`), derived from `writeFields` and the read by one function,
-`pageExcerpts`. A form whose `fieldsJson` would exceed the 256 KiB argument
-limit is refused before it is filed.
+`pageExcerpts`. The connector takes each JSON text argument up to 256 KiB in
+UTF-8. The tool measures the exact text the write step sends (`tojsonText`:
+the flow runtime's `tojson`, Python's `json.dumps` with ", " and ": ", ASCII
+output and keys in their own order, then < > & ' as `\u` escapes). A change
+whose `fieldsJson` would be longer is refused before it is filed and again at
+the read-back; a binding whose `expectedBindingJson` would be longer is refused
+at `check_read`.
 
 After the review, `read_reviewed_page` takes the revision the review's answer
 approves (`review.targets`), not the revision this run filed: after a

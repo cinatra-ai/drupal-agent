@@ -20,10 +20,9 @@
 //
 // What this file executes: the shape of cinatra/oas.json, the pack's
 // `reviewed_change` tool (ops `page`, `read` and `outcome`) with fake inputs,
-// and the write steps' templates, rendered by a small renderer below that
-// copies the runtime's rules for the constructs the templates use (comments
-// and `tojson` as Jinja writes it: keys sorted, non-ASCII and the characters
-// < > & ' as \u escapes). What it does not execute: the host's passthrough
+// and the write steps' templates, rendered by a small renderer below for the
+// constructs the templates use (comments, and `tojson` through the tool's own
+// `tojsonText`). What it does not execute: the host's passthrough
 // road, the connector, the site and the flow runtime.
 //
 // Zero-dependency; runs on plain node:test via tests/run.mjs.
@@ -97,19 +96,11 @@ function reachable(from, avoid) {
 
 // --- a renderer for the constructs the write templates use --------------------
 
-const PY_ESCAPES = { "<": "\\u003c", ">": "\\u003e", "&": "\\u0026", "'": "\\u0027" };
-/** Jinja's `tojson`: json.dumps with sorted keys and ASCII output, then < > & ' escaped. */
-function tojson(value) {
-  const sorted = (v) =>
-    Array.isArray(v)
-      ? v.map(sorted)
-      : v !== null && typeof v === "object"
-        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])]))
-        : v;
-  return JSON.stringify(sorted(value) ?? null)
-    .replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
-    .replace(/[<>&']/g, (c) => PY_ESCAPES[c]);
-}
+// `tojson` renders with the tool's own `tojsonText`, the one function the
+// tool's size checks measure with, so the renderer and the checks cannot drift.
+// tests/send-size.test.mjs pins that function to texts the flow runtime
+// rendered.
+const { tojsonText: tojson } = await load();
 function evalExpr(expr, vars) {
   const pieces = expr.trim().split("|").map((s) => s.trim());
   const name = pieces.shift();

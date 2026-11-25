@@ -18,6 +18,7 @@ import "./page-snapshot-filed-and-reviewed.test.mjs";
 
 import "./protected-draft-flow.test.mjs";
 import "./model-free-flow.test.mjs";
+import "./send-size.test.mjs";
 import "./oas-template-input-placeholders.test.mjs";
 import "./readme-states-flow.test.mjs";
 import "./start-input-contract.test.mjs";
