@@ -27,3 +27,4 @@ import "./publishing-step.test.mjs";
 import "./reviewed-change-read.test.mjs";
 import "./page-form.test.mjs";
 import "./reviewed-snapshot-checks.test.mjs";
+import "./no-change-outcome.test.mjs";

@@ -690,13 +690,37 @@ function form(call) {
   return { ok: true, next: "review", pageForm };
 }
 
-/** `op: unchanged` — the outcome of a change that changes nothing: the node, no changes, no reason. */
+/** The most characters of the request the no-change reason repeats. */
+export const REQUEST_MAX = 300;
+
+/** The most characters of the node's title the no-change reason repeats. */
+const TITLE_MAX = 120;
+
+/** Text on one line, cut to `max` characters with an ellipsis. */
+function oneLine(text, max) {
+  const line = String(text).replace(/\s+/g, " ").trim();
+  return line.length <= max ? line : `${line.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * `op: unchanged` — the outcome of a change that changes nothing: the node, no
+ * changes, and a reason built here, never by the model. The compose step's
+ * answer is the same for a request that needs no change and for a request it
+ * dropped, and no code can tell the two apart (whether the request asked to
+ * publish is known only through that same answer). So the run ends completed,
+ * and the reason tells the person that nothing was proposed, reviewed or
+ * written for their request, and repeats the request so they can see it.
+ */
 function unchanged(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
   const read = checkedRead(call);
   if (writeFields.publish) refuse("the request asks to publish, which needs the review");
   if (changedOf(read.values, writeFields).fields.length > 0) refuse("the values to write change the node, which needs the review");
-  return { ok: true, nodeId: read.nodeId, changes: [], reason: "" };
+  const title = oneLine(read.values.get("title"), TITLE_MAX);
+  const request = oneLine(readText(call.instructions), REQUEST_MAX);
+  const lead = `No change was proposed for this request on node ${oneLine(read.nodeId, 40)} ("${title}"), so nothing was reviewed or written`;
+  const reason = request === "" ? `${lead}; the request was empty.` : `${lead}: ${request}`;
+  return { ok: true, nodeId: read.nodeId, changes: [], reason };
 }
 
 const excerptKey = (list) =>

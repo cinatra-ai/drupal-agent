@@ -6,13 +6,13 @@ Edit Drupal content from plain-language instructions and return a field diff for
 
 **Configuration.** Each call's `instanceId` selects a connected Drupal site.
 
-**Usage.** Inputs: `instanceId`, `nodeId` (numeric ID), `nodeBundle` (content type), `nodeStatus` (`"published"` or `"draft"`), `instructions` (requested change). Status and bundle come from the node read, never from caller hints. Output: `nodeId`, `reason` (empty on success/no-change), and `changes`, containing `field`, `before`, `after`.
+**Usage.** Inputs: `instanceId`, `nodeId` (numeric ID), `nodeBundle` (content type), `nodeStatus` (`"published"` or `"draft"`), `instructions` (requested change). Status and bundle come from the node read, never from caller hints. Output: `nodeId`, `reason` (empty on success), `changes` (`field`, `before`, `after`).
 
 **Development.** Start the local stack with `docker compose --profile drupal up -d`. Default agent port: 3020. Override via `DRUPAL_CONTENT_EDITOR_A2A_URL` in `.env.local`.
 
-**API contract.** Inputs are strings; `changes` holds `{field, before, after}`. The write takes every value and the publish flag only from the approved page snapshot revision, read back after the review; a publish also needs an explicit request. A published edit is one `drupal_node_create_draft_revision` call that saves the draft and reads it back, never followed by a generic live-default update.
+**API contract.** Inputs are strings. The write takes every value and the publish flag only from the approved page snapshot revision, read back after the review; a publish also needs an explicit request. A published edit is one `drupal_node_create_draft_revision` call that saves the draft and reads it back, never followed by a generic live-default update.
 
-**Troubleshooting.** A refused edit ends the run as failed with the reason: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reads are required. A reviewed revision that is unreadable, of another node or empty fails the run (`reviewed_change_unavailable`) before any site call. A refusal after dispatch may leave a draft. A separate page requires explicit choice. Empty `changes` in a completed run mean no edit needed (a publish alone is refused); a reviewed change that saved nothing ends the run as failed, never as an empty diff.
+**Troubleshooting.** A refused edit ends the run as failed with the reason: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reads are required. A reviewed revision that is unreadable, of another node or empty fails the run (`reviewed_change_unavailable`) before any site call. A refusal after dispatch may leave a draft. A separate page requires explicit choice. If no change was proposed, the run completes with empty `changes`; `reason` repeats the request (a publish alone is refused); a reviewed change that saved nothing ends the run as failed, never as an empty diff.
 
 ## Works with
 

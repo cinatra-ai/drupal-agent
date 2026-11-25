@@ -1060,6 +1060,18 @@
     },
     {
       "component_type": "DataFlowEdge",
+      "name": "start_to_no_change_outcome_instructions",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "instructions",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "instructions"
+    },
+    {
+      "component_type": "DataFlowEdge",
       "name": "read_node_to_no_change_outcome_title",
       "source_node": {
         "$component_ref": "read_node"
@@ -2668,6 +2680,7 @@
             "op": "unchanged",
             "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
             "writeFields": "{# pyagentspec-input-hint (do not remove): {{ writeFields }} #}{{ writeFields | tojson }}",
+            "instructions": "{# pyagentspec-input-hint (do not remove): {{ instructions }} #}{{ instructions | tojson }}",
             "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
             "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
@@ -2710,6 +2723,11 @@
             }
           },
           "default": {}
+        },
+        {
+          "title": "instructions",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "title",
@@ -2814,7 +2832,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent ends a change of nothing: it checks again that the values change nothing and ask for no publish, and answers the node with no changes. Nothing is filed, reviewed or written."
+          "description": "The agent ends a change of nothing: it checks again that the values change nothing and ask for no publish, and answers the node with no changes and a fixed reason that repeats the request and says that nothing was reviewed or written."
         }
       }
     }

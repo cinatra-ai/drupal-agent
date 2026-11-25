@@ -47,7 +47,7 @@ The agent emits a single final assistant message containing a JSON object:
 }
 ```
 
-The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts`) — WayFlow returns the conversation history in the `task` object; `task.artifacts` is not implemented. The caller JSON-parses the final assistant message text to extract `nodeId`, `changes` and the declared `reason`. A refusal carries no diff and names why no safe write occurred; ordinary success/no-change has an empty reason.
+The caller (`chat/route.ts`) reads this from `task.history` (not `task.artifacts`) — WayFlow returns the conversation history in the `task` object; `task.artifacts` is not implemented. The caller JSON-parses the final assistant message text to extract `nodeId`, `changes` and the declared `reason`. A refusal carries no diff and names why no safe write occurred; ordinary success has an empty reason; a change of nothing that never reached the review carries the fixed no-change reason below.
 
 ## The write takes only the reviewed change (cinatra-ai/cinatra#3745)
 
@@ -59,8 +59,16 @@ A change of nothing (no values, or values equal to the read, and no publish)
 is not filed and not reviewed: `form_page` answers `next: "no_change"`, the
 branch `route_change` takes the run to `no_change_outcome` (the
 `reviewed_change` tool, `op: unchanged`, which checks that again) →
-`emit_output` → `end`. The run completes with empty `changes` and an empty
-reason, and no Drupal call is made. Any other `next` goes to the review.
+`emit_output` → `end`. The run completes with empty `changes`, and no Drupal
+call is made. The reason is never empty: the step builds it in code (never
+the model) from the run's `instructions` (a data edge from `start`), the node
+id and the read title: "No change was proposed for this request on node 7
+("Opening hours"), so nothing was reviewed or written: <request>", the
+request flattened to one line and cut to 300 characters. The compose step's
+`{fields: [], publish: false}` is the same for a request already satisfied and
+for a request the model dropped (whether a publish was asked is known only
+through that answer), so no code can tell them apart; the reason lets the
+person see it. Any other `next` goes to the review.
 
 Only a successful read leads to either road. `reviewed_change` accepts the
 read only when its `error` is an object whose `code` and `message` are both

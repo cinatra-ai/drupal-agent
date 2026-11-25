@@ -281,9 +281,13 @@ test("R4 a successful read that asks for no change still ends the run as a chang
   assert.equal((await extensionTool({ input: formCall(NOTHING), ports: {} })).next, "no_change");
   const equal = { fields: [{ field: "body", value: READ.body }], publish: false };
   assert.equal((await extensionTool({ input: formCall(equal), ports: {} })).next, "no_change");
-  for (const writeFields of [NOTHING, equal]) {
-    assert.deepEqual(await extensionTool({ input: unchangedCall(writeFields), ports: {} }), { ok: true, nodeId: "7", changes: [], reason: "" });
-  }
+  const told = (outcome) => {
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.nodeId, "7");
+    assert.deepEqual(outcome.changes, []);
+    assert.match(outcome.reason, /^No change was proposed for this request on node 7 .*nothing was reviewed or written/);
+  };
+  for (const writeFields of [NOTHING, equal]) told(await extensionTool({ input: unchangedCall(writeFields), ports: {} }));
   const published = { ...READ, nodeStatus: "published", address: "" };
-  assert.deepEqual(await extensionTool({ input: unchangedCall(NOTHING, published), ports: {} }), { ok: true, nodeId: "7", changes: [], reason: "" });
+  told(await extensionTool({ input: unchangedCall(NOTHING, published), ports: {} }));
 });

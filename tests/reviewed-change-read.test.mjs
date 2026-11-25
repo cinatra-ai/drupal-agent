@@ -11,7 +11,8 @@
 // A change that changes nothing never reaches the review: `form_page` answers
 // `next: "no_change"`, the branch `route_change` takes the run past the filing
 // and the review to `no_change_outcome`, and the run ends completed with empty
-// `changes` and an empty reason, without a site call.
+// `changes` and a reason built by code that repeats the request and says that
+// nothing was reviewed or written, without a site call.
 //
 // When the reviewed change is not usable, the tool refuses: the step fails,
 // so the run ends with `reviewed_change_unavailable` and a message, and the
@@ -360,10 +361,16 @@ test("V11 a change of nothing ends the run completed, past the filing and the re
   const nothing = JSON.stringify({ fields: [], publish: false });
   const formed = await extensionTool({ input: { op: "form", nodeId: JSON.stringify("7"), writeFields: nothing, address: JSON.stringify(""), ...read }, ports: {} });
   assert.equal(formed.next, "no_change");
-  const outcome = await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: nothing, ...read }, ports: {} });
-  assert.deepEqual(outcome, { ok: true, nodeId: "7", changes: [], reason: "" });
+  const instructions = JSON.stringify("Say that we open at nine");
+  const outcome = await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: nothing, instructions, ...read }, ports: {} });
+  assert.deepEqual(outcome, {
+    ok: true,
+    nodeId: "7",
+    changes: [],
+    reason: 'No change was proposed for this request on node 7 ("Opening hours"), so nothing was reviewed or written: Say that we open at nine',
+  });
   const equal = JSON.stringify({ fields: [{ field: "body", value: "<p>Open</p>" }], publish: false });
-  assert.deepEqual(await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: equal, ...read }, ports: {} }), outcome);
+  assert.deepEqual(await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: equal, instructions, ...read }, ports: {} }), outcome);
 
   // The no-change step refuses whatever would need the review: a change, a publish, a failed read.
   const refused = {
