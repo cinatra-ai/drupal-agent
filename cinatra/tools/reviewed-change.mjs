@@ -473,45 +473,40 @@ const sameWords = (a, b) => a.trim().split(/\s+/).join(" ") === b.trim().split(/
 // ---------------------------------------------------------------------------
 // INVISIBLE CHARACTERS AND WHITE SPACE: ONE RULE PER CHANGED BLOCK.
 //
-// The display draws each changed block as plain text, and draws a run of white
-// space as one space. So what it cannot show must not change. The rule works
-// on each changed block (the unit the review shows), by exact positions:
+// The display draws each changed block as plain text: its source, markup
+// included, with a run of white space drawn as one space. So what it cannot
+// show must not change. The rule works on each changed block (the unit the
+// review shows), byte for byte, with no exception and no normalisation:
 //
 // 1. A changed block that holds an invisible character, in its read text or in
-//    its new text, is refused: the agent does not change such a block at all,
-//    and a person changes it on the site. Unchanged blocks keep what they hold.
-//    An invisible character is one that draws nothing or changes the direction
-//    of the text around it: a format character (Cf: the zero-width space,
-//    non-joiner and joiner, the word joiner, U+FEFF, the soft hyphen, the
-//    direction marks, embeddings, overrides and isolates, the tag characters);
-//    a control character (Cc) other than tab, line feed and carriage return; a
-//    space (Zs) other than U+0020 and U+00A0; the line and paragraph
-//    separators (Zl, Zp); any other default ignorable character, except the
-//    variation selectors U+FE00 to U+FE0F, which only choose the look of the
-//    visible character before them.
-// 2. In the body and the title, outside a whitespace-sensitive block (one
-//    that holds `pre`, `textarea`, `code`, `listing`, `xmp`, `plaintext` or a
-//    `white-space` style), a run of ASCII white space counts as one space, as
-//    the page draws it. Inside such a block, and in every `field_` value (the
-//    tool cannot tell a plain text field, whose line breaks are drawn, from a
-//    formatted one), white space is taken byte for byte.
-// 3. Between the unchanged start and the unchanged end of the changed block
-//    (taken so that no run of white space is cut), every run of white space,
-//    U+00A0 included, must be one plain space U+0020 on both sides: that is
-//    exactly what the display draws. A block whose sides differ only in white
-//    space stays refused, as the display's parser rejects it.
+//    its new text, is refused: the agent does not change such a block, and a
+//    person changes it on the site. An invisible character is any character of
+//    the Unicode classes Cf, Cc (except tab, line feed and carriage return),
+//    Zs (except U+0020, so U+00A0 is one), Zl, Zp, Default_Ignorable_Code_Point
+//    and Variation_Selector.
+// 2. The changed part of a block is what lies between its unchanged start and
+//    its unchanged end, both byte for byte equal, widened so that no run of
+//    white space is cut. In it, on both sides, white space may only be a single
+//    U+0020 between two visible characters: that is exactly what the display
+//    draws. Any other white space there (a tab, a line break, two spaces, a
+//    space at the edge of the block) is refused.
+// 3. A block whose sides differ only in white space stays refused, as the
+//    display's parser rejects it.
 // ---------------------------------------------------------------------------
 
-const INVISIBLE = /(?![\t\n\r \u00A0\uFE00-\uFE0F])[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/u;
-const SENSITIVE = /<(?:pre|textarea|code|listing|xmp|plaintext)\b|white-space/i;
-const ASCII_SPACE_RUN = /[\t\n\f\r ]+/g;
+const INVISIBLE = /(?![\t\n\r ])[\p{Cf}\p{Cc}\p{Zs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\p{Variation_Selector}]/u;
 const SPACE = /\s/;
-const SPACE_RUN = /\s+/g;
 
 const codePointName = (text) => `U+${text.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`;
 
-/** Whether `text` holds a run of white space other than one plain space. */
-const otherSpace = (text) => (text.match(SPACE_RUN) ?? []).some((run) => run !== " ");
+/** Whether `text` holds, from `from` to `to`, white space other than one U+0020 between two visible characters. */
+function otherSpace(text, from, to) {
+  for (let i = from; i < to; i += 1) {
+    if (!SPACE.test(text[i])) continue;
+    if (text[i] !== " " || i === 0 || i === text.length - 1 || SPACE.test(text[i - 1]) || SPACE.test(text[i + 1])) return true;
+  }
+  return false;
+}
 
 /** Refuses a changed block (`published` against `proposed`) that breaks the rule above. */
 export function checkedBlock(region, position, published, proposed) {
@@ -525,19 +520,16 @@ export function checkedBlock(region, position, published, proposed) {
       );
     }
   }
-  const exact = region.startsWith("field_") || SENSITIVE.test(published) || SENSITIVE.test(proposed);
-  const was = exact ? published : published.replace(ASCII_SPACE_RUN, " ");
-  const will = exact ? proposed : proposed.replace(ASCII_SPACE_RUN, " ");
   let start = 0;
-  const shorter = Math.min(was.length, will.length);
-  while (start < shorter && was[start] === will[start]) start += 1;
+  const shorter = Math.min(published.length, proposed.length);
+  while (start < shorter && published[start] === proposed[start]) start += 1;
   let end = 0;
-  while (end < shorter - start && was[was.length - 1 - end] === will[will.length - 1 - end]) end += 1;
-  while (start > 0 && SPACE.test(was[start - 1])) start -= 1;
-  while (end > 0 && SPACE.test(was[was.length - end])) end -= 1;
-  if (otherSpace(was.slice(start, was.length - end)) || otherSpace(will.slice(start, will.length - end))) {
+  while (end < shorter - start && published[published.length - 1 - end] === proposed[proposed.length - 1 - end]) end += 1;
+  while (start > 0 && SPACE.test(published[start - 1])) start -= 1;
+  while (end > 0 && SPACE.test(published[published.length - end])) end -= 1;
+  if (otherSpace(published, start, published.length - end) || otherSpace(proposed, start, proposed.length - end)) {
     refuse(
-      `${name} changes white space other than one plain space, which the page snapshot draws as one space and cannot show`,
+      `${name} changes white space other than one plain space between visible characters, which the page snapshot cannot show as it is`,
       "start a new run whose change keeps that white space as it is, or make that change on the site",
     );
   }

@@ -136,17 +136,20 @@ It refuses, before anything is filed, what the display cannot show: a block
 display's parser rejects a block whose two sides hold the same words
 (`src/cms-page-model.ts:189`), and more than 200 changed blocks
 (`CMS_PAGE_MAX_EXCERPTS`). One rule per changed block covers what plain text
-hides (`checkedBlock`). A changed block that holds an invisible character
-(format and control characters, spaces other than U+0020 and U+00A0, line and
-paragraph separators, other default ignorable characters) in its read or new
-text is refused: the agent does not change such a block, a person does it on
-the site; this freezes blocks with joined emoji, soft hyphens or direction
-marks. Between the unchanged start and end of a changed block, every run of
-white space must be one plain space on both sides; in the body and the title,
-outside blocks holding `pre`, `textarea`, `code` or a `white-space` style, a
-run of ASCII white space counts as one space first, as the page draws it, and
-`field_` values are taken byte for byte. So a line break, a tab, two spaces or
-a no-break space cannot change inside a shown change.
+hides (`checkedBlock`), byte for byte, with no exception and no normalisation.
+A changed block that holds an invisible character (Unicode Cf, Cc except tab,
+line feed and carriage return, Zs except U+0020, so U+00A0 too, Zl, Zp,
+default ignorable characters and variation selectors) in its read or new text
+is refused: the agent does not change such a block, a person does it on the
+site; this freezes blocks with joined emoji, emoji variation selectors, soft
+hyphens, direction marks or no-break spaces. In the changed part of a block
+(between its byte-equal start and end, widened so no run of white space is
+cut), white space may only be a single U+0020 between two visible characters:
+a tab, a line break or two spaces there, in text or inside markup such as an
+attribute, is refused. The excerpt shows the block's source, so markup and
+attribute changes are seen; the agent can change words and markup and add a
+block written without line breaks, but cannot change white space other than
+single spaces.
 
 The read-back accepts the review's answer only when all its signals agree:
 `approved` is true, `review.decision` is `approved`, `review.envelopeVersion`
