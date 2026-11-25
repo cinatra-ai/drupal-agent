@@ -3,8 +3,11 @@
  *
  * `op: form` builds the page snapshot a person reviews from the read and the
  * values the compose step answers (`writeFields`: the fields and the publish
- * flag). The changed blocks the display shows (`excerpts`) are derived from
- * those values by `pageExcerpts`, in code: each changed block is shown as its
+ * flag). A value that equals the read is left out: only a field that changes
+ * is filed, shown and written, and the filed values, the shown blocks and the
+ * values the read-back answers all come from that one result. The changed
+ * blocks the display shows (`excerpts`) are derived from those values by
+ * `pageExcerpts`, in code: each changed block is shown as its
  * source text, so everything written for it is shown. A change the display
  * cannot show is refused, and nothing is filed. It also answers `next`:
  * `no_change` when the values change nothing and ask for no publish, so the
@@ -18,7 +21,9 @@
  * and answers its values. The write step takes the values it writes only from
  * this answer, so it can write nothing the reviewed snapshot did not hold. The
  * read derives the blocks again from those values and the same read, and
- * refuses when the reviewed text shows other blocks.
+ * refuses when the reviewed text shows other blocks, or when it would write a
+ * field that none of the derived blocks shows (so a field whose value equals
+ * the read is never written, though the snapshot names it).
  *
  * - The revision read is the one the review's answer names for the filed
  *   artifact, never the one this run filed: after a Regenerate the approved
@@ -292,7 +297,7 @@ function grouped(text) {
 }
 
 /** The blocks of one value: `{ kind, level, source }`, in order; their sources joined are the value. */
-function blocksOf(value) {
+export function blocksOf(value) {
   const blocks = [];
   for (const block of grouped(value)) {
     const heading = /^h([1-6])$/.exec(block.name);
@@ -318,8 +323,30 @@ function blocksOf(value) {
   return blocks;
 }
 
-/** The most blocks one value may have for the alignment. */
-const MAX_BLOCKS = 2000;
+/**
+ * The most characters, in all, of the values the derivation compares: the read
+ * value and the value to write of each field that changes. It is far above any
+ * page a person reviews block by block, and it bounds the work of splitting
+ * the values into blocks.
+ */
+const MAX_TEXT = 4_000_000;
+
+/**
+ * The most blocks, in all, of the values the derivation compares, on both
+ * sides: it bounds the memory of the block lists and of the numbers that stand
+ * for them.
+ */
+const MAX_BLOCKS = 40_000;
+
+/**
+ * The most cells of one comparison table, which covers only the blocks between
+ * the unchanged blocks at the start and at the end of a value. 4,000,000 cells
+ * of 4 bytes are 16 MB, and admit for example a part of 2,000 blocks on each
+ * side: ten times the 200 changed blocks the display can show, so a change the
+ * display can show is refused only when its first and last changed block are
+ * more than about 2,000 blocks apart.
+ */
+const MAX_TABLE_CELLS = 4_000_000;
 
 /**
  * The two block lists aligned by their longest common run of unchanged blocks.
@@ -327,20 +354,51 @@ const MAX_BLOCKS = 2000;
  * block has no `next` and an added one no `old`; the removed and added blocks
  * between two unchanged ones are paired in order. A step's index is the
  * position the display draws.
+ *
+ * Each block is compared by a number that stands for its source, so one
+ * comparison costs the same for any block. The unchanged blocks at the start
+ * and at the end are matched first, in linear time; only the part between them
+ * is compared in a table, whose size is checked against MAX_TABLE_CELLS before
+ * the table is made. `meter`, when given, counts the cells of the table made.
  */
-function alignedBlocks(region, was, will) {
-  if (was.length > MAX_BLOCKS || will.length > MAX_BLOCKS) refuse(`${region} has more than ${MAX_BLOCKS} blocks`);
-  const rows = was.length + 1;
-  const cols = will.length + 1;
-  const common = new Uint32Array(rows * cols);
-  for (let i = was.length - 1; i >= 0; i -= 1) {
-    for (let j = will.length - 1; j >= 0; j -= 1) {
-      common[i * cols + j] = was[i].source === will[j].source
+export function alignedBlocks(region, was, will, meter) {
+  const numbers = new Map();
+  const numberOf = (block) => {
+    let number = numbers.get(block.source);
+    if (number === undefined) {
+      number = numbers.size;
+      numbers.set(block.source, number);
+    }
+    return number;
+  };
+  const a = was.map(numberOf);
+  const b = will.map(numberOf);
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start += 1;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+    endA -= 1;
+    endB -= 1;
+  }
+  const n = endA - start;
+  const m = endB - start;
+  const cols = m + 1;
+  const cells = (n + 1) * cols;
+  if (cells > MAX_TABLE_CELLS) {
+    refuse(`the changed part of ${region} spans ${n} blocks of the read and ${m} blocks of the value to write, more blocks than the page snapshot form can compare`);
+  }
+  const common = new Uint32Array(cells);
+  if (meter !== undefined) meter.cells += cells;
+  for (let i = n - 1; i >= 0; i -= 1) {
+    for (let j = m - 1; j >= 0; j -= 1) {
+      common[i * cols + j] = a[start + i] === b[start + j]
         ? common[(i + 1) * cols + j + 1] + 1
         : Math.max(common[(i + 1) * cols + j], common[i * cols + j + 1]);
     }
   }
   const steps = [];
+  for (let k = 0; k < start; k += 1) steps.push({ same: true });
   let removed = [];
   let added = [];
   const flush = () => {
@@ -350,21 +408,22 @@ function alignedBlocks(region, was, will) {
   };
   let i = 0;
   let j = 0;
-  while (i < was.length || j < will.length) {
-    if (i < was.length && j < will.length && was[i].source === will[j].source) {
+  while (i < n || j < m) {
+    if (i < n && j < m && a[start + i] === b[start + j]) {
       flush();
       steps.push({ same: true });
       i += 1;
       j += 1;
-    } else if (j >= will.length || (i < was.length && common[(i + 1) * cols + j] >= common[i * cols + j + 1])) {
-      removed.push(was[i]);
+    } else if (j >= m || (i < n && common[(i + 1) * cols + j] >= common[i * cols + j + 1])) {
+      removed.push(was[start + i]);
       i += 1;
     } else {
-      added.push(will[j]);
+      added.push(will[start + j]);
       j += 1;
     }
   }
   flush();
+  for (let k = endA; k < a.length; k += 1) steps.push({ same: true });
   return steps;
 }
 
@@ -399,17 +458,35 @@ export function pageExcerpts(read, writeFields) {
     if (!values.has(item.field)) refuse(`the field ${item.field} is not a field the read returned`);
     toWrite.set(item.field, item.value);
   }
-  const excerpts = [];
+  const compared = [];
+  let characters = 0;
   for (const [region, before] of values) {
-    if (!toWrite.has(region)) continue;
+    if (!toWrite.has(region) || toWrite.get(region) === before) continue;
     const after = toWrite.get(region);
+    characters += before.length + after.length;
+    compared.push({ region, before, after });
+  }
+  if (characters > MAX_TEXT) {
+    refuse(`the values to compare hold more than ${MAX_TEXT} characters in all, more than the page snapshot form can compare`);
+  }
+  let blockCount = 0;
+  for (const item of compared) {
+    if (item.region === "title") continue;
+    item.was = blocksOf(item.before);
+    item.will = blocksOf(item.after);
+    blockCount += item.was.length + item.will.length;
+  }
+  if (blockCount > MAX_BLOCKS) {
+    refuse(`the values to compare hold more than ${MAX_BLOCKS} blocks in all, more than the page snapshot form can compare`);
+  }
+  const excerpts = [];
+  for (const { region, before, after, was, will } of compared) {
     if (region === "title") {
-      if (before === after) continue;
       if (sameWords(before, after)) refuse("the title changes only in white space, which the page snapshot cannot show");
       excerpts.push({ region, position: 0, kind: "heading", level: 1, published: before, proposed: after });
       continue;
     }
-    alignedBlocks(region, blocksOf(before), blocksOf(after)).forEach((step, position) => {
+    alignedBlocks(region, was, will).forEach((step, position) => {
       if (step.same) return;
       const { old, next } = step;
       const published = old ? old.source : "";
@@ -447,21 +524,34 @@ function checkedWriteFields(value) {
   return { fields: value.fields.map((item) => ({ field: item.field, value: item.value })), publish: value.publish };
 }
 
+/**
+ * The values to write with every value that equals the read left out: only a
+ * field that changes is filed, shown and written. A field the read did not
+ * return is refused.
+ */
+function changedOf(values, writeFields) {
+  for (const item of writeFields.fields) {
+    if (!values.has(item.field)) refuse(`the field ${item.field} is not a field the read returned`);
+  }
+  return { fields: writeFields.fields.filter((item) => item.value !== values.get(item.field)), publish: writeFields.publish };
+}
+
 /** `op: form` — the page snapshot to file, built from the read and the values to write, and the road it takes. */
 function form(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
   if (readFailed(call)) refuse("the read failed, so there is nothing to file");
   const values = readValuesOf(call);
   const address = readText(call.address).trim();
-  const excerpts = pageExcerpts(values, writeFields);
+  const changed = changedOf(values, writeFields);
+  const excerpts = pageExcerpts(values, changed);
   return {
     ok: true,
-    next: excerpts.length === 0 && !writeFields.publish ? "no_change" : "review",
+    next: changed.fields.length === 0 && !changed.publish ? "no_change" : "review",
     pageForm: {
       cinatraCmsPage: 1,
       system: "drupal",
       page: { title: values.get("title"), address: address === "" ? null : address, cmsAddress: address === "" ? null : `${address}/edit` },
-      writeFields,
+      writeFields: changed,
       excerpts,
     },
   };
@@ -472,7 +562,8 @@ function unchanged(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
   if (readFailed(call)) refuse("the read failed, so nothing is known to need no change");
   if (writeFields.publish) refuse("the request asks to publish, which needs the review");
-  if (pageExcerpts(readValuesOf(call), writeFields).length > 0) refuse("the values to write change the node, which needs the review");
+  const values = readValuesOf(call);
+  if (changedOf(values, writeFields).fields.length > 0) refuse("the values to write change the node, which needs the review");
   return { ok: true, nodeId: readText(call.nodeId).trim(), changes: [], reason: "" };
 }
 
@@ -502,7 +593,12 @@ async function read(call, ports) {
   }
   const values = valuesToWrite(result.text);
   if (!Array.isArray(values.shown)) refuse("the reviewed revision shows no changed blocks");
-  if (excerptKey(values.shown) !== excerptKey(pageExcerpts(readValues, values))) {
+  const derived = pageExcerpts(readValues, values);
+  const regions = new Set(derived.map((e) => e.region));
+  for (const item of values.fields) {
+    if (!regions.has(item.field)) refuse(`the reviewed revision would write the field ${item.field}, which its shown blocks do not show`);
+  }
+  if (excerptKey(values.shown) !== excerptKey(derived)) {
     refuse("the reviewed revision shows other words than the values it would write");
   }
   return { ok: true, reviewedFields: values.fields, reviewedPublish: values.publish, reviewedRevisionId: revisionId };

@@ -268,3 +268,92 @@ test("F6 the read-back answers the values only when the reviewed text shows the 
     "a read without its field list",
   );
 });
+
+// --- only a field that changes is written -----------------------------------
+
+const readBack = async (pageForm) => (await load()).extensionTool({ input: readCall(), ports: portsWith(pageForm) });
+
+test("F8 a change of the title alone files and writes the title alone, though the compose step repeats the other values", async () => {
+  const { extensionTool } = await load();
+  const composed = {
+    fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: READ.body }, { field: "field_note", value: "Plain note" }],
+    publish: false,
+  };
+  const { pageForm } = await extensionTool({ input: formCall(composed), ports: {} });
+  assert.deepEqual(pageForm.writeFields, { fields: [{ field: "title", value: "Opening hours and holidays" }], publish: false }, "an unchanged value is not filed");
+  assert.deepEqual(pageForm.excerpts.map((e) => e.region), ["title"]);
+  const result = await readBack(pageForm);
+  assert.deepEqual(result.reviewedFields, [{ field: "title", value: "Opening hours and holidays" }], "the write step is handed the title alone");
+});
+
+test("F9 a change of the body alone files and writes the body alone", async () => {
+  const { extensionTool } = await load();
+  const body = READ.body.replace("nine", "ten");
+  const { pageForm } = await extensionTool({ input: formCall({ fields: [{ field: "title", value: READ.title }, { field: "body", value: body }], publish: false }), ports: {} });
+  assert.deepEqual(pageForm.writeFields, { fields: [{ field: "body", value: body }], publish: false });
+  assert.deepEqual(pageForm.excerpts.map((e) => e.region), ["body"]);
+  assert.deepEqual((await readBack(pageForm)).reviewedFields, [{ field: "body", value: body }]);
+});
+
+test("F10 the read-back refuses a revision that would write a field its shown blocks do not show, also when that value equals the read", async () => {
+  const { extensionTool } = await load();
+  const { pageForm } = await extensionTool({ input: formCall({ fields: [{ field: "title", value: "Opening hours and holidays" }], publish: false }), ports: {} });
+  for (const [field, value] of [["body", READ.body], ["field_note", "Plain note"]]) {
+    const extra = { ...pageForm, writeFields: { ...pageForm.writeFields, fields: [...pageForm.writeFields.fields, { field, value }] } };
+    await assert.rejects(
+      readBack(extra),
+      (err) => refusedWithCode(err) && err.message.includes(`would write the field ${field}`),
+      `an unchanged ${field}`,
+    );
+  }
+  const write = parts.load_node.data.system;
+  assert.ok(write.includes("expectedFields only from the actual earlier read, for exactly the fields reviewedFields names"), "the check covers exactly the fields written");
+  assert.ok(write.includes("send exactly the fields reviewedFields names, each with its value, and no other"), "the write sends exactly the returned fields");
+});
+
+// --- the work of the comparison is bounded -----------------------------------
+
+const manyBlocks = (count, change = () => null) => Array.from({ length: count }, (_, i) => change(i) ?? `<p>Block ${i}.</p>\n`).join("");
+const bodyRead = (body) => ({ ...READ, body });
+
+test("F11 a page of 5,000 blocks with one changed block compares only the changed block", async () => {
+  const { alignedBlocks, blocksOf, extensionTool } = await load();
+  const before = manyBlocks(5000);
+  const after = manyBlocks(5000, (i) => (i === 2500 ? "<p>Block 2500, changed.</p>\n" : null));
+  const meter = { cells: 0 };
+  const steps = alignedBlocks("body", blocksOf(before), blocksOf(after), meter);
+  assert.ok(meter.cells > 0 && meter.cells <= 16, `the table holds the changed blocks only, not ${meter.cells} cells`);
+  assert.equal(steps.length, 5000);
+  assert.equal(steps.filter((s) => !s.same).length, 1, "one changed block");
+  const { pageForm } = await extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} });
+  assert.deepEqual(pageForm.excerpts, [
+    { region: "body", position: 2500, kind: "paragraph", level: null, published: "<p>Block 2500.</p>\n", proposed: "<p>Block 2500, changed.</p>\n" },
+  ]);
+});
+
+test("F12 a change whose compared part is too large is refused at the form and at the read-back; so are too many blocks and too long a text", async () => {
+  const { extensionTool } = await load();
+  const before = manyBlocks(5000);
+  const after = manyBlocks(5000, (i) => (i === 0 || i === 4999 ? `<p>Block ${i}, changed.</p>\n` : null));
+  const tooLarge = (err) => refusedWithCode(err) && err.message.includes("more blocks than the page snapshot form can compare");
+  await assert.rejects(extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} }), tooLarge, "at the form");
+  const snapshot = { cinatraCmsPage: 1, system: "drupal", page: {}, writeFields: withBody(after), excerpts: [] };
+  await assert.rejects(extensionTool({ input: readCall(bodyRead(before)), ports: portsWith(snapshot) }), tooLarge, "at the read-back");
+
+  const blocks = manyBlocks(20001);
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody(`${blocks}<p>x</p>`), bodyRead(blocks)), ports: {} }),
+    (err) => refusedWithCode(err) && err.message.includes("blocks in all"),
+    "too many blocks",
+  );
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody("a".repeat(4_000_001))), ports: {} }),
+    (err) => refusedWithCode(err) && err.message.includes("characters in all"),
+    "too long a text",
+  );
+  await assert.rejects(
+    extensionTool({ input: readCall(bodyRead("b".repeat(4_000_001))), ports: portsWith({ ...snapshot, writeFields: withBody("<p>x</p>") }) }),
+    (err) => refusedWithCode(err) && err.message.includes("characters in all"),
+    "too long a read, at the read-back",
+  );
+});
