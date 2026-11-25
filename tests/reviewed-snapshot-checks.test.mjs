@@ -48,7 +48,6 @@ const READ = {
   address: "https://www.example.org/node/7",
   error: { code: "", message: "" },
   nodeStatus: "draft",
-  nodeChanged: "1764000000",
 };
 
 /** The read inputs as the flow renders them: each value as JSON text. */
@@ -60,7 +59,6 @@ const readInputs = (read = READ) => ({
   address: JSON.stringify(read.address),
   error: JSON.stringify(read.error),
   nodeStatus: JSON.stringify(read.nodeStatus),
-  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 const formCall = (writeFields, read = READ) => ({ op: "form", writeFields: JSON.stringify(writeFields), ...readInputs(read) });
 const unchangedCall = (writeFields, read = READ) => ({ op: "unchanged", writeFields: JSON.stringify(writeFields), ...readInputs(read) });
@@ -86,25 +84,21 @@ const sourcesOf = (node, input) =>
 
 // --- 1. a publish with no change of text ------------------------------------
 
-test("P1 a publish with no change of text is refused at the form step with its reason, and nothing is filed", async () => {
+test("P1 any request to publish is refused at the form step with its reason, and nothing is filed", async () => {
   const { extensionTool } = await load();
   const cases = {
     "a publish alone": { fields: [], publish: true },
     "a publish with a value equal to the read": { fields: [{ field: "title", value: READ.title }, { field: "body", value: READ.body }], publish: true },
+    "a publish with a change of text": { ...BODY_CHANGE, publish: true },
   };
   for (const [name, writeFields] of Object.entries(cases)) {
     await assert.rejects(
       extensionTool({ input: formCall(writeFields), ports: {} }),
-      refusedSaying("a publish with no change of text cannot be reviewed on the page display"),
+      refusedSaying("this agent never publishes"),
       name,
     );
     await assert.rejects(extensionTool({ input: unchangedCall(writeFields), ports: {} }), refusedWithCode, `${name}: the no-change step refuses it too`);
   }
-  // A publish together with a change of text is filed and reviewed as before.
-  const { next, pageForm } = await extensionTool({ input: formCall({ ...BODY_CHANGE, publish: true }), ports: {} });
-  assert.equal(next, "review");
-  assert.equal(pageForm.writeFields.publish, true);
-  assert.ok(pageForm.excerpts.length > 0);
 });
 
 test("P2 the refusal ends the run before the filing: the filing step is reached only through the form step's answer", () => {
@@ -115,11 +109,15 @@ test("P2 the refusal ends the run before the filing: the filing step is reached 
   assert.deepEqual(sourcesOf("file_page", "pageForm"), [["form_page", "pageForm"]]);
 });
 
-test("P3 the read-back refuses a revision that would publish with no field to write, whatever it shows", async () => {
+test("P3 the read-back refuses a revision that would publish, whatever it shows", async () => {
   const { extensionTool } = await load();
   const { pageForm } = await extensionTool({ input: formCall(BODY_CHANGE), ports: {} });
-  const publishOnly = { ...pageForm, writeFields: { fields: [], publish: true } };
-  for (const [name, form] of Object.entries({ "no blocks": { ...publishOnly, excerpts: [] }, "the blocks of another change": publishOnly })) {
+  const cases = {
+    "a publish alone, no blocks": { ...pageForm, writeFields: { fields: [], publish: true }, excerpts: [] },
+    "a publish alone, the blocks of another change": { ...pageForm, writeFields: { fields: [], publish: true } },
+    "a publish with the shown change": { ...pageForm, writeFields: { ...BODY_CHANGE, publish: true } },
+  };
+  for (const [name, form] of Object.entries(cases)) {
     await assert.rejects(extensionTool({ input: readCall(), ports: portsWith(form) }), refusedWithCode, name);
   }
 });
@@ -137,7 +135,7 @@ test("S1 the filed page record names this run's node: node id, status, title, ad
     cmsAddress: `${READ.address}/edit`,
   });
   const result = await extensionTool({ input: readCall(), ports: portsWith(pageForm) });
-  assert.deepEqual(result.reviewedFields, BODY_CHANGE.fields);
+  assert.deepEqual(result.reviewedFields, { body: BODY_CHANGE.fields[0].value });
 });
 
 test("S2 a revision whose page record is missing or names another node, status, title or address is refused, saying which part differs", async () => {
@@ -219,7 +217,6 @@ test("R1 a failed read of any shape is refused at the form step and at the no-ch
     "a message beside an empty code": { ...READ, error: { code: "", message: "The site did not answer." } },
     "an unknown status": { ...READ, nodeStatus: "unknown" },
     "no status": { ...READ, nodeStatus: "" },
-    "no change time": { ...READ, nodeChanged: "" },
     "no title": { ...READ, title: "" },
     "no node id": { ...READ, nodeId: "" },
   };
@@ -244,7 +241,7 @@ test("R2 a read input missing from the call, or standing at the flow's default, 
   // without an https address. The empty list of field values is a real answer
   // too (a node with no `field_` text value), so `fieldValues` is refused only
   // when missing; at its default the other inputs still decide.
-  const READ_INPUTS = ["nodeId", "title", "fieldValues", "error", "nodeStatus", "nodeChanged"];
+  const READ_INPUTS = ["nodeId", "title", "fieldValues", "error", "nodeStatus"];
   const REAL_AT_DEFAULT = new Set(["fieldValues"]);
   for (const [step, input] of Object.entries(steps)) {
     const declared = Object.fromEntries(parts[step].inputs.map((i) => [i.title, i]));
@@ -266,14 +263,16 @@ test("R2 a read input missing from the call, or standing at the flow's default, 
   }
 });
 
-test("R3 the steps take the read's status, change time and error from the read step, and the node id from the start", () => {
+test("R3 the steps take the read's status and error from the check of the read, and the node id from the start", () => {
   for (const step of ["form_page", "no_change_outcome", "read_reviewed_page"]) {
-    for (const name of ["title", "body", "fieldValues", "error", "nodeStatus", "nodeChanged"]) {
-      assert.deepEqual(sourcesOf(step, name), [["read_node", name]], `${step}.${name}`);
+    for (const name of ["title", "body", "fieldValues", "error"]) {
+      assert.deepEqual(sourcesOf(step, name), [["check_read", name]], `${step}.${name}`);
     }
+    assert.deepEqual(sourcesOf(step, "nodeStatus"), [["check_read", "status"]], `${step}.nodeStatus`);
     assert.deepEqual(sourcesOf(step, "nodeId"), [["start", "nodeId"]], `${step}.nodeId`);
+    assert.equal(parts[step].inputs.some((i) => i.title === "nodeChanged"), false, `${step} takes no change time: the binding carries it to the write`);
   }
-  for (const step of ["form_page", "read_reviewed_page"]) assert.deepEqual(sourcesOf(step, "address"), [["read_node", "address"]], `${step}.address`);
+  for (const step of ["form_page", "read_reviewed_page"]) assert.deepEqual(sourcesOf(step, "address"), [["check_read", "address"]], `${step}.address`);
 });
 
 test("R4 a successful read that asks for no change still ends the run as a change of nothing", async () => {

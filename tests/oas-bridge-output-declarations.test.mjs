@@ -9,9 +9,11 @@
 // `{"type": "object"}`.
 //
 // The declared members are the ones this repository's own consumers read:
-//   - `load_node / changes` — the per-entry shape the node's own system prompt
-//     spells out (Rule 4 and the Step 4 result object), which the downstream
-//     `emit_output` message serializes and the flow's own outputs re-export.
+//   - `compose_change / writeFields` — the one bridge output: each item names a
+//     field and its complete new value, which the form step reads.
+//   - `write_outcome / changes` — built in code from the answer to the save;
+//     the downstream `emit_output` message serializes it and the flow's own
+//     outputs re-export it.
 //
 // The same array flows through three further declarations of the same value
 // (the flow-level outputs, the `emit_output` inputs and the `end` outputs), so
@@ -96,11 +98,21 @@ function componentProperty(componentId, listKey, title) {
   return entry;
 }
 
-test("load_node / changes declares its item members", () => {
-  const output = bridgeOutput("load_node", "changes");
+test("compose_change / writeFields declares its item members", () => {
+  const output = bridgeOutput("compose_change", "writeFields");
+  assert.equal(output.type, "object");
+  assertDeclaredMembers(
+    "compose_change / writeFields items",
+    output.json_schema?.properties?.fields?.items,
+    ["field", "value"],
+  );
+});
+
+test("write_outcome / changes, which builds the run's changes in code, carries the same declaration", () => {
+  const output = componentProperty("write_outcome", "outputs", "changes");
   assert.equal(output.type, "array");
   assertDeclaredMembers(
-    "load_node / changes items",
+    "write_outcome / changes items",
     output.json_schema?.items,
     CHANGE_MEMBERS,
   );

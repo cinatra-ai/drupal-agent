@@ -36,14 +36,15 @@ const parts = oas.$referenced_components;
 
 const REVIEW = "page_review_gate";
 const READ_REVIEWED = "read_reviewed_page";
-const WRITE = "load_node";
-const SETTLE = "settle_outcome";
+const WRITES = ["write_draft", "write_unpublished"];
+const ROUTE = "route_status";
+const OUTCOME = "write_outcome";
 const COMPOSE = "compose_change";
 const TOOL_NAME = "reviewed_change";
 const MODULE = "./cinatra/tools/reviewed-change.mjs";
 const PAGE_TYPE = "@cinatra-ai/website-artifacts:page-snapshot";
 const CODE = "reviewed_change_unavailable";
-const SITE_TOOLS = ["drupal_node_get", "drupal_node_update", "drupal_node_create_draft_revision", "drupal_node_publish"];
+const SITE_TOOLS = ["drupal_node_read_for_edit", "drupal_node_update", "drupal_node_create_draft_revision", "drupal_node_publish"];
 
 const FILED = { artifactId: "artifact-7", representationRevisionId: "revision-1" };
 const SUCCESSOR = "revision-2";
@@ -121,7 +122,6 @@ const call = (reviewAnswer, artifactId = FILED.artifactId) => ({
   error: JSON.stringify({ code: "", message: "" }),
   nodeId: JSON.stringify("7"),
   nodeStatus: JSON.stringify("draft"),
-  nodeChanged: JSON.stringify("1764000000"),
 });
 
 async function load() {
@@ -135,9 +135,10 @@ const refusedWithCode = (err) =>
 
 test("V1 the read of the reviewed revision stands between the review and the write, and reaches no site", () => {
   const road = oas.nodes.map((n) => n.$component_ref);
-  assert.deepEqual(road.slice(road.indexOf(REVIEW), road.indexOf(WRITE) + 1), [REVIEW, READ_REVIEWED, WRITE]);
+  assert.deepEqual(road.slice(road.indexOf(REVIEW), road.indexOf(ROUTE) + 1), [REVIEW, READ_REVIEWED, ROUTE]);
   assert.deepEqual(controlInto(READ_REVIEWED), [REVIEW]);
-  assert.deepEqual(controlInto(WRITE), [READ_REVIEWED], "the write step is reached only through the read");
+  assert.deepEqual(controlInto(ROUTE), [READ_REVIEWED], "the branch to the writes is reached only through the read");
+  for (const write of WRITES) assert.deepEqual(controlInto(write), [ROUTE], `${write} is reached only through the branch`);
   const node = parts[READ_REVIEWED];
   assert.equal(node.component_type, "ApiNode");
   assert.ok(node.url.endsWith("/api/agents/passthrough"));
@@ -159,28 +160,18 @@ test("V2 the read takes the filed artifact and the review's answer, and nothing 
   const sources = oas.data_flow_connections.filter((e) => e.destination_node.$component_ref === READ_REVIEWED);
   assert.deepEqual(sources.filter((e) => e.source_node.$component_ref === COMPOSE), []);
   assert.deepEqual(sourcesOf(READ_REVIEWED, "representationRevisionId"), [], "the revision this run filed is not what the read reads");
-  assert.deepEqual(titles(parts[READ_REVIEWED].outputs), ["reviewedFields", "reviewedPublish", "reviewedRevisionId", "ok"]);
+  assert.deepEqual(titles(parts[READ_REVIEWED].outputs), ["reviewedFields", "reviewedRevisionId", "reviewedSnapshot", "ok"]);
 });
 
-test("V3 every value the write step and the settle step get of the change traces to the read, not to the compose step", () => {
-  const intoWrite = oas.data_flow_connections.filter((e) => e.destination_node.$component_ref === WRITE);
-  assert.deepEqual(intoWrite.filter((e) => e.source_node.$component_ref === COMPOSE), [], "no edge from the compose step into the write step");
-  const intoSettle = oas.data_flow_connections.filter((e) => e.destination_node.$component_ref === SETTLE);
-  assert.deepEqual(intoSettle.filter((e) => e.source_node.$component_ref === COMPOSE), [], "no edge from the compose step into the settle step");
-  assert.deepEqual(sourcesOf(WRITE, "reviewedFields"), [[READ_REVIEWED, "reviewedFields"]]);
-  assert.deepEqual(sourcesOf(WRITE, "reviewedPublish"), [[READ_REVIEWED, "reviewedPublish"]]);
-  assert.deepEqual(sourcesOf(WRITE, "representationRevisionId"), [[READ_REVIEWED, "reviewedRevisionId"]]);
-  assert.deepEqual(sourcesOf(SETTLE, "proposedFields"), [[READ_REVIEWED, "reviewedFields"]]);
-  assert.equal(titles(parts[WRITE].inputs).includes("proposedFields"), false);
+test("V3 every value the write steps and the outcome step get of the change traces to the reviewed revision, not to the compose step", () => {
+  for (const step of [...WRITES, OUTCOME]) {
+    const into = oas.data_flow_connections.filter((e) => e.destination_node.$component_ref === step);
+    assert.deepEqual(into.filter((e) => e.source_node.$component_ref === COMPOSE), [], `no edge from the compose step into ${step}`);
+    assert.deepEqual(sourcesOf(step, "reviewedFields"), [[READ_REVIEWED, "reviewedFields"]]);
+  }
+  for (const write of WRITES) assert.deepEqual(sourcesOf(write, "reviewedSnapshot"), [[READ_REVIEWED, "reviewedSnapshot"]]);
+  assert.deepEqual(sourcesOf(OUTCOME, "reviewedRevisionId"), [[READ_REVIEWED, "reviewedRevisionId"]]);
   assert.equal(titles(parts[COMPOSE].outputs).includes("proposedFields"), false, "the compose step answers the values only inside the page form");
-
-  const { system, user } = parts[WRITE].data;
-  assert.ok(user.includes("- reviewedFields: {{ reviewedFields }}"));
-  assert.ok(user.includes("- reviewedPublish: {{ reviewedPublish }}"));
-  assert.equal(user.includes("proposedFields"), false);
-  assert.equal(system.includes("proposedFields"), false, "the write step names no compose-step value");
-  assert.ok(system.includes("build fields only from reviewedFields"));
-  assert.ok(system.includes("The values you write come only from the reviewed revision"));
 });
 
 test("V4 the compose step answers the values to write, and the filed page form carries them", () => {
@@ -214,27 +205,23 @@ test("V5 the tool reads the APPROVED revision the review's answer names, and ans
   assert.deepEqual(reads, [{ artifactId: FILED.artifactId, representationRevisionId: SUCCESSOR, objectType: PAGE_TYPE }]);
   assert.deepEqual(result, {
     ok: true,
-    reviewedFields: WRITE_FIELDS.fields,
-    reviewedPublish: false,
+    reviewedFields: { title: "Opening hours and holidays" },
     reviewedRevisionId: SUCCESSOR,
+    reviewedSnapshot: [{ artifactId: FILED.artifactId, representationRevisionId: SUCCESSOR }],
   });
 });
 
-test("V6 the publish branch also reads the reviewed revision: the publish flag comes from its text", async () => {
+test("V6 a reviewed revision that asks to publish is refused: this agent never publishes", async () => {
   const { extensionTool } = await load();
   const { ports } = portsAnswering(readOf(snapshot({ ...WRITE_FIELDS, publish: true })));
-  const result = await extensionTool({ input: call(answer([FILED])), ports });
-  assert.equal(result.reviewedPublish, true);
-  assert.deepEqual(result.reviewedFields, WRITE_FIELDS.fields);
-  // A publish with no field to write is never filed (the form step refuses it), and never read back as one.
+  await assert.rejects(extensionTool({ input: call(answer([FILED])), ports }), refusedWithCode, "a publish with a change");
   const { ports: publishOnly } = portsAnswering(readOf(snapshot({ fields: [], publish: true })));
   await assert.rejects(extensionTool({ input: call(answer([FILED])), ports: publishOnly }), refusedWithCode, "a publish alone");
   for (const publish of ["true", 1, null, undefined]) {
     const { ports: bad } = portsAnswering(readOf(snapshot({ fields: WRITE_FIELDS.fields, publish })));
     await assert.rejects(extensionTool({ input: call(answer([FILED])), ports: bad }), refusedWithCode, `publish ${JSON.stringify(publish)}`);
   }
-  const system = parts[WRITE].data.system;
-  assert.ok(system.includes("call drupal_node_publish only when reviewedPublish is true"));
+  assert.equal(JSON.stringify(oas).includes("drupal_node_publish"), false, "no step of the flow can publish");
 });
 
 test("V7 an answer that names no approved revision of the filed artifact is refused before any read", async () => {
@@ -305,19 +292,20 @@ test("V9 a reviewed text that carries no values to write is refused (the flow fi
   }
 });
 
-test("V10 a refusal makes no site call: the write step never runs after a failed read", async () => {
-  // The refusal fails the read step. The write step is the only step that
-  // names a site tool, and its one way in is the read step.
-  for (const tool of SITE_TOOLS.slice(1)) {
+test("V10 a refusal makes no site call: the write steps never run after a failed read", async () => {
+  // The refusal fails the read step. Each write step is the only step that
+  // names its site tool, and its one way in is the branch after the read.
+  for (const [tool, step] of [["drupal_node_update", "write_unpublished"], ["drupal_node_create_draft_revision", "write_draft"]]) {
     const callers = oas.nodes.map((n) => n.$component_ref).filter((id) => JSON.stringify(parts[id]).includes(tool));
-    assert.deepEqual(callers, [WRITE], `${tool} is named by the write step only`);
+    assert.deepEqual(callers, [step], `${tool} is named by ${step} only`);
+    assert.deepEqual(controlInto(step), [ROUTE]);
   }
-  assert.deepEqual(controlInto(WRITE), [READ_REVIEWED]);
+  assert.deepEqual(controlInto(ROUTE), [READ_REVIEWED]);
   for (const id of oas.nodes.map((n) => n.$component_ref)) {
     assert.equal("completed_error_codes" in (parts[id].data ?? {}), false, `${id} lists no completed code`);
   }
   const { extensionTool } = await load();
-  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be form, unchanged or read/);
+  await assert.rejects(extensionTool({ input: { op: "write" }, ports: {} }), /`op` must be page, form, unchanged, read or outcome/);
 });
 
 test("V11 a change of nothing ends the run completed, past the filing and the review, and makes no site call", async () => {
@@ -343,9 +331,9 @@ test("V11 a change of nothing ends the run completed, past the filing and the re
   for (const tool of SITE_TOOLS) assert.equal(JSON.stringify(node).includes(tool), false, `the no-change step names no ${tool}`);
   assert.deepEqual(sourcesOf(NO_CHANGE, "writeFields"), [[COMPOSE, "writeFields"]]);
   assert.deepEqual(sourcesOf(NO_CHANGE, "nodeId"), [["start", "nodeId"]]);
-  for (const input of ["nodeId", "changes", "reason"]) {
-    assert.deepEqual(sourcesOf("emit_output", input), [[WRITE, input], [NO_CHANGE, input]], `the output's ${input} comes from the one step that ran`);
-    assert.deepEqual(sourcesOf("end", input), [[WRITE, input], [NO_CHANGE, input]], `the end's ${input} comes from the one step that ran`);
+  for (const input of ["nodeId", "changes", "reason", "error"]) {
+    assert.deepEqual(sourcesOf("emit_output", input), [[OUTCOME, input], [NO_CHANGE, input]], `the output's ${input} comes from the one step that ran`);
+    assert.deepEqual(sourcesOf("end", input), [[OUTCOME, input], [NO_CHANGE, input]], `the end's ${input} comes from the one step that ran`);
   }
 
   // What the steps answer for the compose step's answer to a request that changes nothing.
@@ -356,7 +344,6 @@ test("V11 a change of nothing ends the run completed, past the filing and the re
     fieldValues: JSON.stringify([]),
     error: JSON.stringify({ code: "", message: "" }),
     nodeStatus: JSON.stringify("draft"),
-    nodeChanged: JSON.stringify("1764000000"),
   };
   const nothing = JSON.stringify({ fields: [], publish: false });
   const formed = await extensionTool({ input: { op: "form", nodeId: JSON.stringify("7"), writeFields: nothing, address: JSON.stringify(""), ...read }, ports: {} });

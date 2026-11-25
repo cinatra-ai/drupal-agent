@@ -57,18 +57,14 @@ for (const [title, value] of Object.entries(defaults)) {
   });
 }
 
-test("the bundle and status hints feed no step; the edit step takes both from the actual read", () => {
+test("the bundle and status hints feed no step; the write is chosen by the status the read answers", () => {
   const hints = Object.keys(defaults);
   const fromStart = flow.data_flow_connections.filter((edge) =>
     edge.source_node.$component_ref === startRef && hints.includes(edge.source_output));
   assert.deepEqual(fromStart, []);
-  for (const title of hints) {
-    const edge = flow.data_flow_connections.find((item) =>
-      item.destination_node.$component_ref === "load_node" && item.destination_input === title);
-    assert.equal(edge.source_node.$component_ref, "read_node");
-    assert.equal(edge.source_output, title);
-  }
-  const { read_node, load_node } = flow.$referenced_components;
-  assert.match(read_node.data.system, /Never copy a caller hint/);
-  assert.match(load_node.data.system, /Caller status and bundle hints are not authority/);
+  const route = flow.data_flow_connections.filter((edge) => edge.destination_node.$component_ref === "route_status");
+  assert.deepEqual(route.map((edge) => [edge.source_node.$component_ref, edge.source_output]), [["check_read", "status"]]);
+  const published = flow.data_flow_connections.filter((edge) =>
+    edge.destination_node.$component_ref === "check_read" && edge.destination_input === "published");
+  assert.deepEqual(published.map((edge) => [edge.source_node.$component_ref, edge.source_output]), [["read_page", "published"]]);
 });

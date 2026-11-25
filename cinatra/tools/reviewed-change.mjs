@@ -1,16 +1,22 @@
 /**
  * THE REVIEWED CHANGE: THE FORM THAT IS FILED, AND THE READ BACK.
  *
+ * `op: page` (step `check_read`, right after the model-free read of
+ * `drupal_node_read_for_edit`) takes the connector's answer only when it is a
+ * read of the run's node with a binding, and hands its plain text values on;
+ * see `page`.
+ *
  * `op: form` builds the page snapshot a person reviews from the read and the
  * values the compose step answers (`writeFields`: the fields and the publish
- * flag). A value that equals the read is left out: only a field that changes
+ * flag, which this agent refuses: it saves, and never publishes). A value that equals the read is left out: only a field that changes
  * is filed, shown and written, and the filed values, the shown blocks and the
  * values the read-back answers all come from that one result. The changed
  * blocks the display shows (`excerpts`) are derived from those values by
  * `pageExcerpts`, in code: each changed block is shown as its
  * source text, so everything written for it is shown. A change the display
- * cannot show is refused, and nothing is filed: so is a publish with no
- * change of text, for which the display has nothing to draw. It also answers
+ * cannot show is refused, and nothing is filed: so is any request to publish,
+ * and a change whose values, as the JSON text the write step sends, exceed
+ * what the connector takes. It also answers
  * `next`: `no_change` when the values change nothing and ask for no publish,
  * so the flow ends the run past the filing and the review; `review`
  * otherwise. What it files passes `checkedSnapshot`, the one check the
@@ -48,14 +54,25 @@
  *   read fails, is cut short or answers another revision or artifact, when the
  *   text carries no values to write, and when it shows other blocks than the
  *   ones derived from its values.
+ * - It answers the values as one object of the changed fields
+ *   (`reviewedFields`, field name to new value), which a publishing step sends
+ *   whole as `fieldsJson`, and the approved revision as a one-item list
+ *   (`reviewedSnapshot`), which the publish card shows.
+ *
+ * `op: outcome` (step `write_outcome`, after the publishing step) reads the
+ * connector's answer to the write and answers the branch the flow takes and
+ * the run's output; see `outcome`.
  *
  * It refuses by the host's documented means: it throws an error named
  * `ExtensionToolCallRefusal` whose message is one sentence, which starts with
- * the code `reviewed_change_unavailable`. It writes no port, no table and no
- * artifact.
+ * its code: `node_read_unavailable` for `page`, `write_answer_unreadable` for
+ * `outcome`, `reviewed_change_unavailable` for the others. It writes no port,
+ * no table and no artifact.
  */
 
 export const CODE = "reviewed_change_unavailable";
+export const PAGE_CODE = "node_read_unavailable";
+export const OUTCOME_CODE = "write_answer_unreadable";
 
 /** The type of the page snapshot the flow files. */
 const PAGE_TYPE = "@cinatra-ai/website-artifacts:page-snapshot";
@@ -69,11 +86,22 @@ const REFUSAL_NAME = "ExtensionToolCallRefusal";
 /** The host repeats a refusal sentence of at most this many characters. */
 const SENTENCE_MAX = 400;
 
-function refuse(cause, next = "start a new run") {
-  const line = `${CODE}: nothing was written, because ${cause}; ${next}.`.replace(/\s+/g, " ").trim();
+/** How a refusal sentence of each code starts. */
+const REFUSAL_START = {
+  [CODE]: "nothing was written",
+  [PAGE_CODE]: "nothing was proposed or written",
+  [OUTCOME_CODE]: "the outcome of the save is not known",
+};
+
+function refuseAs(code, cause, next) {
+  const line = `${code}: ${REFUSAL_START[code]}, because ${cause}; ${next}.`.replace(/\s+/g, " ").trim();
   const error = new Error(line.length <= SENTENCE_MAX ? line : `${line.slice(0, SENTENCE_MAX - 1).trimEnd()}…`);
   error.name = REFUSAL_NAME;
   throw error;
+}
+
+function refuse(cause, next = "start a new run") {
+  refuseAs(CODE, cause, next);
 }
 
 const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -145,6 +173,7 @@ function valuesToWrite(text) {
   if (writeFields.fields.length === 0) {
     refuse("the reviewed revision carries no field to write");
   }
+  if (writeFields.publish) refuse("the reviewed revision asks to publish, and this agent never publishes");
   return {
     fields: writeFields.fields.map((item) => ({ field: item.field, value: item.value })),
     publish: writeFields.publish,
@@ -615,9 +644,9 @@ const READ_STATUSES = new Set(["published", "draft"]);
 /**
  * THE READ, accepted only when it is a successful read. A successful read
  * always carries: an error object whose `code` and `message` are both the
- * empty text (the read step's contract for a successful read), a status of
- * `published` or `draft`, a non-empty change time, a non-empty title and a
- * list of `field_` text values, for a non-empty node id of the run. Anything
+ * empty text (what `page` answers for a read it accepts), a status of
+ * `published` or `draft`, a non-empty title and a list of `field_` text
+ * values, for a non-empty node id of the run. Anything
  * else is a failed read, whatever its shape: `{}`, `{ message }`, `null`, a
  * text, a missing input and each flow default that stands in for one. A failed
  * read is refused with its own message when it has one, else with a fixed one;
@@ -633,8 +662,6 @@ function checkedRead(call) {
   if (nodeId === "") refuse("no node id was handed to this step");
   const status = readText(call.nodeStatus).trim();
   if (!READ_STATUSES.has(status)) refuse("the read answered no status of published or draft, so it was not a successful read");
-  const changed = readText(call.nodeChanged).trim();
-  if (changed === "") refuse("the read answered no change time, so it was not a successful read");
   const values = readValuesOf(call);
   if (values.get("title").trim() === "") refuse("the read answered no title, so it was not a successful read");
   return { nodeId, status, values, address: readText(call.address).trim() };
@@ -769,19 +796,21 @@ function form(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
   const read = checkedRead(call);
   const changed = changedOf(read.values, writeFields);
-  if (changed.fields.length === 0 && changed.publish) {
-    // A publish with no change of text stages no content, and the page display
-    // draws only changed text blocks and no node status: there is nothing true
-    // for it to draw, and the publish card opens only after an approved review.
+  if (changed.publish) {
+    // This agent saves a change and never publishes: a published page gets a
+    // draft revision of the same node and an unpublished page stays
+    // unpublished. The page display draws only changed text blocks and no node
+    // status, so a person could not see a publish in the review either.
     refuse(
-      "a publish with no change of text cannot be reviewed on the page display yet: the display draws only changed text blocks, never the node's status",
-      "ask for the publish together with a change of text, or publish the node on the site",
+      "the request asks to publish, and this agent never publishes: it saves the change as a draft revision of a published page, or saves an unpublished page without publishing it",
+      "publish the page on the site, or start a new run that asks for the change alone",
     );
   }
   const excerpts = pageExcerpts(read.values, changed);
   if (changed.fields.length === 0) {
     return { ok: true, next: "no_change", pageForm: {} };
   }
+  checkedSendSize(changed.fields);
   const page = pageOf(read);
   const pageForm = { cinatraCmsPage: 1, system: "drupal", page, writeFields: changed, excerpts };
   checkedSnapshot(pageForm, page);
@@ -855,19 +884,246 @@ async function read(call, ports) {
   if (excerptKey(values.shown) !== excerptKey(derived)) {
     refuse("the reviewed revision shows other words than the values it would write");
   }
-  return { ok: true, reviewedFields: values.fields, reviewedPublish: values.publish, reviewedRevisionId: revisionId };
+  checkedSendSize(values.fields);
+  return {
+    ok: true,
+    reviewedFields: fieldsObject(values.fields),
+    reviewedRevisionId: revisionId,
+    reviewedSnapshot: [{ artifactId, representationRevisionId: revisionId }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THE PUBLISHING STEP SENDS.
+//
+// A publishing step sends the reviewed values whole as `fieldsJson`, the JSON
+// text of one object (field name to new value), rendered by the flow's
+// `tojson`: keys sorted, every character outside ASCII and the characters
+// < > & ' written as \u escapes. The connector takes such a text of at most
+// 256 KiB (drupal-mcp-connector JSON_ARGUMENT_MAX_BYTES) and refuses a longer
+// one. So a change whose text would be longer is refused here, before it is
+// filed and again at the read-back, and nothing is sent.
+// ---------------------------------------------------------------------------
+
+/** The most bytes of a JSON text argument the connector takes. */
+export const SEND_MAX_BYTES = 256 * 1024;
+
+/** The values to write as the one object the publishing step sends. */
+function fieldsObject(fields) {
+  return Object.fromEntries(fields.map((item) => [item.field, item.value]));
+}
+
+/** The bytes of the JSON text the flow's `tojson` renders for `value`. */
+export function sentBytes(value) {
+  const sorted = (v) =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : isPlainObject(v)
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])]))
+        : v;
+  // Each UTF-16 unit outside ASCII becomes a six-byte \uXXXX escape, and so
+  // do < > & '; JSON.stringify already escapes quotes, backslashes and
+  // control characters.
+  const text = JSON.stringify(sorted(value));
+  let bytes = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const unit = text.charCodeAt(i);
+    bytes += unit > 0x7e || unit === 0x3c || unit === 0x3e || unit === 0x26 || unit === 0x27 ? 6 : 1;
+  }
+  return bytes;
+}
+
+/** Refuses values whose JSON text, as the publishing step sends it, is longer than the connector takes. */
+function checkedSendSize(fields) {
+  const bytes = sentBytes(fieldsObject(fields));
+  if (bytes > SEND_MAX_BYTES) {
+    refuse(
+      `the values to write, as the JSON text the write sends, take ${bytes} bytes, more than the ${SEND_MAX_BYTES} bytes the Drupal connector takes`,
+      "start a new run with a smaller change, or make that change on the site",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// page: THE CHECK OF THE CONNECTOR'S READ.
+// ---------------------------------------------------------------------------
+
+/** A value the flow renders with `tojson`, read back; the value itself when it is not JSON text. */
+function jsonValue(value) {
+  if (typeof value !== "string") return value;
+  const parsed = parseJson(value);
+  return parsed === undefined ? value : parsed;
+}
+
+/** The form of a language code the connector answers. */
+const LANGUAGE_FORM = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * THE CHECK OF THE READ (step `check_read`, right after the model-free read of
+ * `drupal_node_read_for_edit`). It takes the connector's answer only when it
+ * is a read of the run's node on the run's instance: the answered `nodeId`
+ * equals the run's node id (a whole number) and `nid` is that number, the
+ * answered `instanceId` equals the run's, `published` is a boolean, `language`
+ * is a language code, `fields` is an object with a non-empty text `title`, and
+ * `binding` is a non-empty object. The binding is checked only as that: its
+ * members belong to the connector and the Cinatra module, and the flow passes
+ * it on to the write unchanged, by its own edge from the read.
+ *
+ * It hands on, under the names the later steps read: the status (`published`
+ * or `draft`), the title, the body (empty when the read has no text body), the
+ * `field_` values that are texts (other values are not offered for a change),
+ * an empty address (the read names no public address) and an empty error.
+ * Anything else is refused: the run fails before the model step, and nothing
+ * is proposed, filed or written. The connector's text is never repeated.
+ */
+function page(call) {
+  const no = (cause) => refuseAs(PAGE_CODE, cause, "start a new run");
+  const nodeId = readText(call.nodeId).trim();
+  if (!/^[1-9][0-9]*$/.test(nodeId)) no("the run names no node id that is a whole number");
+  if (jsonValue(call.readNodeId) !== nodeId || jsonValue(call.nid) !== Number(nodeId)) {
+    no("the read answered another node than the run's node");
+  }
+  const instanceId = readText(call.instanceId).trim();
+  if (instanceId === "" || jsonValue(call.readInstanceId) !== instanceId) {
+    no("the read answered another Drupal instance than the run's instance");
+  }
+  const published = jsonValue(call.published);
+  if (typeof published !== "boolean") no("the read answered no published state");
+  const language = jsonValue(call.language);
+  if (typeof language !== "string" || !LANGUAGE_FORM.test(language)) no("the read answered no language");
+  const fields = jsonValue(call.fields);
+  if (!isPlainObject(fields)) no("the read answered no field values");
+  if (typeof fields.title !== "string" || fields.title.trim() === "") no("the read answered no title");
+  const binding = jsonValue(call.binding);
+  if (!isPlainObject(binding) || Object.keys(binding).length === 0) {
+    no("the read answered no binding, which the write needs to save only an unchanged page");
+  }
+  const fieldValues = Object.entries(fields)
+    .filter(([name, value]) => name.startsWith("field_") && typeof value === "string")
+    .map(([field, value]) => ({ field, value }));
+  return {
+    ok: true,
+    nodeId,
+    instanceId,
+    status: published ? "published" : "draft",
+    title: fields.title,
+    body: typeof fields.body === "string" ? fields.body : "",
+    fieldValues,
+    address: "",
+    error: { code: "", message: "" },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// outcome: THE CONNECTOR'S ANSWER TO THE WRITE.
+// ---------------------------------------------------------------------------
+
+/**
+ * The refusal codes of a bound write other than `node_changed`
+ * (drupal-mcp-connector, src/integration/edit-binding.ts, REFUSAL), each with
+ * the plain message the run ends with. After each of them but
+ * `write_unverified` nothing was written.
+ */
+export const WRITE_REFUSALS = {
+  pending_revision:
+    "Nothing was written: the page has a newer revision that waits for review on the site. Publish or discard that revision on the site, then start a new run.",
+  permission_denied:
+    "Nothing was written: the site or Cinatra does not permit this edit for the connected account or for you. Check the permissions, then start a new run.",
+  invalid_input:
+    "Nothing was written: the site refused the field values or the request. Check the fields on the site, or start a new run with another change.",
+  refused: "Nothing was written: the site refused the save. Start a new run; if it is refused again, make the change on the site.",
+  write_unverified:
+    "The save was sent, but its result could not be verified: a change may have been saved. Check the page on the site before trying again.",
+  invalid_binding:
+    "Nothing was written: the read the review was based on does not fit this site or page any more, for example because the Drupal connection was changed. Start a new run.",
+  wrong_page_state: "Nothing was written: the page's published state does not fit the save this run chose. Start a new run.",
+  module_capability_missing:
+    "Nothing was written: the site does not offer the Cinatra Drupal module tools that save only an unchanged page. Update the module on the site and expose its tools, then start a new run.",
+  read_unavailable: "Nothing was written: the page could not be read on the site before the save. Start a new run later.",
+};
+
+/** The text of one stored field as the write answers it: the value of a single item, else the items as JSON text. */
+function storedText(items) {
+  if (Array.isArray(items) && items.length === 1 && isPlainObject(items[0]) && typeof items[0].value === "string") return items[0].value;
+  return JSON.stringify(items);
+}
+
+/**
+ * THE OUTCOME OF THE WRITE (step `write_outcome`, right after the publishing
+ * step that ran). It reads the connector's answer and answers `next`, the
+ * branch the flow takes, with the run's output, all built here, never by a
+ * model:
+ *
+ * - `written` for an answer with `applied` exactly true, the run's node id, a
+ *   revision id and a stored value of each reviewed field. `changes` names each
+ *   reviewed field with its value as read before and the value the site stored
+ *   after; `reason` is empty.
+ * - `node_changed` (an answer with `ok` exactly false and that code): nothing
+ *   was written, because the page changed on the site after the read. The flow
+ *   goes back to the read; `reviewNotice` tells the person on the next review
+ *   that the change was proposed again against the current page.
+ * - each other refusal code (`WRITE_REFUSALS`, an answer with `ok` exactly
+ *   false): the run ends completed with `error` and its plain message as
+ *   `reason`.
+ *
+ * Any other answer, and no answer at all, is refused
+ * (`write_answer_unreadable`): the run fails and tells the person to check the
+ * page on the site, because the save's outcome is not known. The connector's
+ * own text is never repeated.
+ */
+function outcome(call) {
+  const no = (cause) => refuseAs(OUTCOME_CODE, cause, "check the page on the site before a new run");
+  const nodeId = readText(call.nodeId).trim();
+  const base = { ok: true, nodeId, changes: [], reason: "", error: {}, reviewNotice: "" };
+  const okAnswer = jsonValue(call.ok);
+  const code = jsonValue(call.code);
+  const applied = jsonValue(call.applied);
+  if (okAnswer === false && applied !== true) {
+    if (code === "node_changed") {
+      return {
+        ...base,
+        next: "node_changed",
+        reviewNotice:
+          "Nothing was written: the page changed on the site after it was read. " +
+          "The change was proposed again against the current page; review it again.",
+      };
+    }
+    if (typeof code === "string" && Object.prototype.hasOwnProperty.call(WRITE_REFUSALS, code)) {
+      const message = WRITE_REFUSALS[code];
+      return { ...base, next: code, reason: message, error: { code, message } };
+    }
+  }
+  if (applied !== true || okAnswer === false) no("the answer is neither a save nor a refusal this agent knows");
+  if (!/^[1-9][0-9]*$/.test(nodeId) || jsonValue(call.answerNodeId) !== nodeId) no("the answer names another node than the run's node");
+  const revisionId = jsonValue(call.revisionId);
+  if (!Number.isSafeInteger(revisionId) || revisionId <= 0) no("the answer names no saved revision");
+  const stored = jsonValue(call.storedFields);
+  const reviewed = jsonValue(call.reviewedFields);
+  if (!isPlainObject(stored) || !isPlainObject(reviewed) || Object.keys(reviewed).length === 0) {
+    no("the answer or the run carries no fields of the save");
+  }
+  const read = readValuesOf(call);
+  const changes = [];
+  for (const [field, value] of Object.entries(reviewed)) {
+    if (typeof value !== "string" || !read.has(field)) no("the run's reviewed values are not fields of the read");
+    if (!Object.prototype.hasOwnProperty.call(stored, field)) no(`the answer carries no stored value of the field ${field}`);
+    changes.push({ field, before: read.get(field), after: storedText(stored[field]) });
+  }
+  return { ...base, next: "written", changes };
 }
 
 /**
  * THE ONE CALLABLE EXPORT the declared-tools contract pins: one function of one
- * argument, `{ input, ports }`. Its operations are `form`, `unchanged` and
- * `read`; any other is refused.
+ * argument, `{ input, ports }`. Its operations are `page`, `form`,
+ * `unchanged`, `read` and `outcome`; any other is refused.
  */
 export async function extensionTool({ input, ports }) {
   const call = input && typeof input === "object" ? input : {};
   const op = typeof call.op === "string" ? call.op.trim() : "";
+  if (op === "page") return page(call);
   if (op === "form") return form(call);
   if (op === "unchanged") return unchanged(call);
   if (op === "read") return read(call, ports);
-  throw new Error(`reviewed_change: \`op\` must be form, unchanged or read — got ${JSON.stringify(call.op)}`);
+  if (op === "outcome") return outcome(call);
+  throw new Error(`reviewed_change: \`op\` must be page, form, unchanged, read or outcome — got ${JSON.stringify(call.op)}`);
 }

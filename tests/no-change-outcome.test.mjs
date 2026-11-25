@@ -32,7 +32,6 @@ const READ = {
   fieldValues: [],
   error: { code: "", message: "" },
   nodeStatus: "draft",
-  nodeChanged: "1764000000",
 };
 const NOTHING = { fields: [], publish: false };
 const call = (instructions, read = READ, writeFields = NOTHING) => ({
@@ -45,7 +44,6 @@ const call = (instructions, read = READ, writeFields = NOTHING) => ({
   fieldValues: JSON.stringify(read.fieldValues),
   error: JSON.stringify(read.error),
   nodeStatus: JSON.stringify(read.nodeStatus),
-  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 
 const sourcesOf = (node, input) =>
@@ -103,7 +101,7 @@ test("N4 the step takes the request by a data edge from the start and hands its 
   assert.ok(node.inputs.some((i) => i.title === "instructions" && i.type === "string"), "the step declares the request");
   assert.deepEqual(sourcesOf(STEP, "instructions"), [["start", "instructions"]]);
   assert.match(node.data.input.input.instructions, /\{\{ instructions \| tojson \}\}/);
-  assert.deepEqual(sourcesOf(STEP, "title"), [["read_node", "title"]]);
+  assert.deepEqual(sourcesOf(STEP, "title"), [["check_read", "title"]]);
   assert.deepEqual(sourcesOf(STEP, "nodeId"), [["start", "nodeId"]]);
   assert.ok(sourcesOf("emit_output", "reason").some(([from, out]) => from === STEP && out === "reason"));
   assert.ok(sourcesOf("end", "reason").some(([from, out]) => from === STEP && out === "reason"));

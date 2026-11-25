@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 const oas = JSON.parse(readFileSync(new URL("../cinatra/oas.json", import.meta.url), "utf8"));
-const flow = oas.$referenced_components.load_node.data.system;
+const flow = oas.$referenced_components.write_draft.data.tool;
 test("the README names the published-edit call the flow makes", () => {
   assert.match(flow, /drupal_node_create_draft_revision/);
   assert.match(readme, /drupal_node_create_draft_revision/);

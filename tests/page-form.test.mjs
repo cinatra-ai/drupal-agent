@@ -60,7 +60,6 @@ const READ = {
   address: "https://www.example.org/node/7",
   nodeId: "7",
   nodeStatus: "published",
-  nodeChanged: "1764000000",
 };
 
 /** The page record the form files for READ. */
@@ -77,7 +76,6 @@ const formCall = (writeFields, read = READ, error = { code: "", message: "" }) =
   error: JSON.stringify(error),
   nodeId: JSON.stringify(read.nodeId),
   nodeStatus: JSON.stringify(read.nodeStatus),
-  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 
 const withBody = (body, publish = false) => ({ fields: [{ field: "body", value: body }], publish });
@@ -96,14 +94,14 @@ test("F1 the form step stands between the compose step and the filing step, and 
   assert.equal(node.metadata.cinatra.riskClass, "read_only");
   assert.deepEqual(sourcesOf(FORM, "writeFields"), [[COMPOSE, "writeFields"]]);
   for (const input of ["title", "body", "fieldValues", "address", "error"]) {
-    assert.deepEqual(sourcesOf(FORM, input), [["read_node", input]], `${input} comes from the read step`);
+    assert.deepEqual(sourcesOf(FORM, input), [["check_read", input]], `${input} comes from the check of the read`);
   }
   assert.deepEqual(titles(node.outputs), ["pageForm", "next", "ok"]);
   assert.deepEqual(sourcesOf(FILE, "pageForm"), [[FORM, "pageForm"]], "the filed form is the form the code built");
   assert.deepEqual(titles(parts[COMPOSE].outputs), ["pageTitle", "writeFields"], "the compose step answers only the values to write");
   assert.equal(parts[COMPOSE].data.system.includes("`excerpts`"), false, "the compose step no longer writes the shown blocks");
   for (const input of ["title", "body", "fieldValues"]) {
-    assert.deepEqual(sourcesOf(READ_REVIEWED, input), [["read_node", input]], `the read-back gets ${input} from the read step`);
+    assert.deepEqual(sourcesOf(READ_REVIEWED, input), [["check_read", input]], `the read-back gets ${input} from the check of the read`);
   }
 });
 
@@ -111,7 +109,7 @@ test("F2 the shown blocks are derived from the values to write: a changed headin
   const { extensionTool } = await load();
   const body = READ.body.replace("nine</a>", "eight</a>").replace("Saturday: closed", "Saturday: ten to two");
   const result = await extensionTool({
-    input: formCall({ fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: body }], publish: true }),
+    input: formCall({ fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: body }], publish: false }),
     ports: {},
   });
   assert.equal(result.ok, true);
@@ -119,7 +117,7 @@ test("F2 the shown blocks are derived from the values to write: a changed headin
     cinatraCmsPage: 1,
     system: "drupal",
     page: PAGE,
-    writeFields: { fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: body }], publish: true },
+    writeFields: { fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: body }], publish: false },
     excerpts: [
       { region: "title", position: 0, kind: "heading", level: 1, published: "Opening hours", proposed: "Opening hours and holidays" },
       {
@@ -230,10 +228,10 @@ test("F7 a change that changes nothing is routed past the filing: next is no_cha
   const route = async (writeFields) => (await extensionTool({ input: formCall(writeFields), ports: {} })).next;
   assert.equal(await route({ fields: [], publish: false }), "no_change", "no values, no publish");
   assert.equal(await route({ fields: [{ field: "title", value: READ.title }, { field: "body", value: READ.body }], publish: false }), "no_change", "values equal to the read");
-  // A publish with no change of text is refused: the display has nothing to draw for it.
+  // Any request to publish is refused: this agent never publishes.
   await assert.rejects(route({ fields: [], publish: true }), refusedWithCode, "a publish alone");
   await assert.rejects(route({ fields: [{ field: "title", value: READ.title }], publish: true }), refusedWithCode, "a publish with an equal value");
-  assert.equal(await route({ ...withBody(READ.body.replace("nine", "ten")), publish: true }), "review", "a publish with a change is reviewed");
+  await assert.rejects(route({ ...withBody(READ.body.replace("nine", "ten")), publish: true }), refusedWithCode, "a publish with a change");
   assert.equal(await route(withBody(READ.body.replace("nine", "ten"))), "review", "a change is reviewed");
 });
 
@@ -252,7 +250,6 @@ const readCall = (read = READ) => ({
   error: JSON.stringify({ code: "", message: "" }),
   nodeId: JSON.stringify(read.nodeId),
   nodeStatus: JSON.stringify(read.nodeStatus),
-  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 const portsWith = (form) => ({
   artifacts: {
@@ -267,7 +264,7 @@ test("F6 the read-back answers the values only when the reviewed text shows the 
   const body = READ.body.replace("Saturday: closed", "Saturday: ten to two");
   const { pageForm } = await extensionTool({ input: formCall(withBody(body)), ports: {} });
   const result = await extensionTool({ input: readCall(), ports: portsWith(pageForm) });
-  assert.deepEqual(result.reviewedFields, [{ field: "body", value: body }]);
+  assert.deepEqual(result.reviewedFields, { body });
 
   const tampered = {
     "another proposed word": { ...pageForm, excerpts: [{ ...pageForm.excerpts[0], proposed: "Saturday: open" }] },
@@ -301,7 +298,7 @@ test("F8 a change of the title alone files and writes the title alone, though th
   assert.deepEqual(pageForm.writeFields, { fields: [{ field: "title", value: "Opening hours and holidays" }], publish: false }, "an unchanged value is not filed");
   assert.deepEqual(pageForm.excerpts.map((e) => e.region), ["title"]);
   const result = await readBack(pageForm);
-  assert.deepEqual(result.reviewedFields, [{ field: "title", value: "Opening hours and holidays" }], "the write step is handed the title alone");
+  assert.deepEqual(result.reviewedFields, { title: "Opening hours and holidays" }, "the write step is handed the title alone");
 });
 
 test("F9 a change of the body alone files and writes the body alone", async () => {
@@ -310,7 +307,7 @@ test("F9 a change of the body alone files and writes the body alone", async () =
   const { pageForm } = await extensionTool({ input: formCall({ fields: [{ field: "title", value: READ.title }, { field: "body", value: body }], publish: false }), ports: {} });
   assert.deepEqual(pageForm.writeFields, { fields: [{ field: "body", value: body }], publish: false });
   assert.deepEqual(pageForm.excerpts.map((e) => e.region), ["body"]);
-  assert.deepEqual((await readBack(pageForm)).reviewedFields, [{ field: "body", value: body }]);
+  assert.deepEqual((await readBack(pageForm)).reviewedFields, { body });
 });
 
 test("F10 the read-back refuses a revision that would write a field its shown blocks do not show, also when that value equals the read", async () => {
@@ -324,9 +321,13 @@ test("F10 the read-back refuses a revision that would write a field its shown bl
       `an unchanged ${field}`,
     );
   }
-  const write = parts.load_node.data.system;
-  assert.ok(write.includes("expectedFields only from the actual earlier read, for exactly the fields reviewedFields names"), "the check covers exactly the fields written");
-  assert.ok(write.includes("send exactly the fields reviewedFields names, each with its value, and no other"), "the write sends exactly the returned fields");
+  for (const write of ["write_draft", "write_unpublished"]) {
+    assert.equal(
+      parts[write].data.input.fieldsJson.replace(/\{#[\s\S]*?#\}/g, ""),
+      "{{ reviewedFields | tojson }}",
+      `${write} sends exactly the fields the read-back answers, and no other`,
+    );
+  }
 });
 
 // --- the work of the comparison is bounded -----------------------------------
@@ -472,7 +473,7 @@ test("F15 a block that holds an invisible character or a no-break space is kept 
   const { pageForm } = await extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} });
   assert.equal(pageForm.writeFields.fields[0].value, after, "an edit of another block is filed");
   const back = await extensionTool({ input: readCall(bodyRead(before)), ports: portsWith(pageForm) });
-  assert.deepEqual(back.reviewedFields, [{ field: "body", value: after }], "and read back");
+  assert.deepEqual(back.reviewedFields, { body: after }, "and read back");
   const refused = {
     "words changed on both sides of a zero-width space": [before.replace("Ask at the desk\u200B.", "Please ask at the front desk\u200B. Thank you."), "U+200B"],
     "removing a zero-width space": [before.replace("desk\u200B.", "desk."), "U+200B"],
@@ -525,7 +526,7 @@ test("F17 white space is compared byte for byte: only a single space between vis
     const { pageForm } = await extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} });
     assert.equal(pageForm.writeFields.fields[0].value, after, name);
     const back = await extensionTool({ input: readCall(bodyRead(before)), ports: portsWith(pageForm) });
-    assert.deepEqual(back.reviewedFields, [{ field: "body", value: after }], `${name}, at the read-back`);
+    assert.deepEqual(back.reviewedFields, { body: after }, `${name}, at the read-back`);
   }
   const shown = (await extensionTool({ input: formCall(withBody('<p class="b">Old</p>'), bodyRead('<p class="a">Old</p>')), ports: {} })).pageForm.excerpts;
   assert.deepEqual([shown[0].published, shown[0].proposed], ['<p class="a">Old</p>', '<p class="b">Old</p>'], "the excerpt shows the block's source, markup included");

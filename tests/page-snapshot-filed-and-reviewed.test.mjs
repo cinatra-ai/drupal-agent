@@ -4,8 +4,9 @@
 // proposed words, the application reviews it, and the write step follows the
 // review.
 //
-// The eight arms pin: the fourteen steps on one road, with one branch that
-// ends a change of nothing before the filing; the read step; the compose
+// The eight arms pin: the eighteen steps on one road, with the branch that
+// ends a change of nothing before the filing, the branch on the status as read
+// and the branch on the answer to the save; the read step; the compose
 // step and the one example of the values it answers, and the form the code
 // builds from them; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
@@ -33,7 +34,8 @@ const PASSTHROUGH_PATH = "/api/agents/passthrough";
 /** The steps, in road order. */
 const ROAD = [
   "start",
-  "read_node",
+  "read_page",
+  "check_read",
   "compose_change",
   "form_page",
   "route_change",
@@ -41,17 +43,34 @@ const ROAD = [
   "gather_page_review",
   "page_review_gate",
   "read_reviewed_page",
-  "load_node",
-  "settle_outcome",
+  "route_status",
+  "write_draft",
+  "write_unpublished",
+  "write_outcome",
+  "route_write",
   "no_change_outcome",
   "emit_output",
   "end",
 ];
 
+/** The refusal codes of a bound write that end the run (node_changed goes back to the read). */
+const REFUSALS = [
+  "pending_revision",
+  "permission_denied",
+  "invalid_input",
+  "refused",
+  "write_unverified",
+  "invalid_binding",
+  "wrong_page_state",
+  "module_capability_missing",
+  "read_unavailable",
+];
+
 /** The control edges: one road, and the branch that ends a change of nothing past the filing and the review. */
 const EDGES = [
-  ["start", "read_node", null],
-  ["read_node", "compose_change", null],
+  ["start", "read_page", null],
+  ["read_page", "check_read", null],
+  ["check_read", "compose_change", null],
   ["compose_change", "form_page", null],
   ["form_page", "route_change", null],
   ["route_change", "file_page", "default"],
@@ -59,9 +78,15 @@ const EDGES = [
   ["file_page", "gather_page_review", null],
   ["gather_page_review", "page_review_gate", null],
   ["page_review_gate", "read_reviewed_page", null],
-  ["read_reviewed_page", "load_node", null],
-  ["load_node", "settle_outcome", null],
-  ["settle_outcome", "emit_output", null],
+  ["read_reviewed_page", "route_status", null],
+  ["route_status", "write_draft", "published"],
+  ["route_status", "write_unpublished", "draft"],
+  ["route_status", "write_outcome", "default"],
+  ["write_draft", "write_outcome", null],
+  ["write_unpublished", "write_outcome", null],
+  ["write_outcome", "route_write", null],
+  ...["written", ...REFUSALS, "default"].map((branch) => ["route_write", "emit_output", branch]),
+  ["route_write", "read_page", "node_changed"],
   ["no_change_outcome", "emit_output", null],
   ["emit_output", "end", null],
 ];
@@ -282,7 +307,7 @@ const DRUPAL_FIXTURE_FORM = {
 
 // ---------------------------------------------------------------------------
 
-test("S1 the fourteen steps stand on one road with one branch, the write step after the review", () => {
+test("S1 the eighteen steps stand on one road with its branches, the write steps after the review", () => {
   assert.deepEqual(
     (oas.nodes ?? []).map((n) => n.$component_ref),
     ROAD,
@@ -294,50 +319,48 @@ test("S1 the fourteen steps stand on one road with one branch, the write step af
     e.to_node.$component_ref,
     e.from_branch ?? null,
   ]);
-  assert.deepEqual(edges, EDGES, "fourteen control edges, in exactly this order");
+  assert.deepEqual(edges, EDGES, "the control edges, in exactly this order");
   assert.equal(oas.start_node.$component_ref, "start");
-  assert.ok(
-    ROAD.indexOf("load_node") > ROAD.indexOf("page_review_gate") &&
-      edges.findIndex(([, to]) => to === "load_node") > edges.findIndex(([, to]) => to === "page_review_gate"),
-    "no load_node before the review step",
-  );
+  for (const write of ["write_draft", "write_unpublished"]) {
+    assert.ok(
+      ROAD.indexOf(write) > ROAD.indexOf("page_review_gate") &&
+        edges.findIndex(([, to]) => to === write) > edges.findIndex(([, to]) => to === "page_review_gate"),
+      `no ${write} before the review step`,
+    );
+  }
 });
 
-test("S2 the read step reads the node and composes its public address", () => {
-  const node = part("read_node");
-  const write = part("load_node");
+test("S2 the read step reads the node without a model; the check step hands its text values on", () => {
+  const node = part("read_page");
   assert.equal(node.component_type, "ApiNode");
-  assert.ok(node.url.includes(LLM_BRIDGE_PATH), "the read step is a bridge step");
-  assert.equal(node.url, write.url);
-  assert.equal(node.http_method, write.http_method);
-  assert.equal(node.data.agent_id, write.data.agent_id);
-  assert.deepEqual(node.data.cinatra_llm, write.data.cinatra_llm);
+  assert.ok(node.url.includes(PASSTHROUGH_PATH), "the read step is a passthrough step, not a bridge step");
+  assert.equal(node.data.tool, "drupal_node_read_for_edit");
   assert.equal(node.data.agent_run_id, "{{ agent_run_id }}");
-  assert.equal("toolbox_ids" in node.data, false, "the read step keeps the default toolbox offer");
+  assert.equal("system" in node.data, false, "no model instructions");
   assert.equal(node.metadata.cinatra.riskClass, "read_only");
   assert.equal(node.metadata.cinatra.requiresApproval, false);
   assert.equal(node.metadata.cinatra.packageName, PACKAGE_NAME);
-
-  const system = node.data.system;
-  assert.ok(system.includes("drupal_node_get"), "the read step names drupal_node_get");
-  assert.ok(system.includes("drupal_instances_list"), "the read step names drupal_instances_list");
   for (const tool of WRITE_TOOLS) {
-    assert.equal(system.includes(tool), false, `the read step never names ${tool}`);
+    assert.equal(JSON.stringify(node.data).includes(tool), false, `the read step never names ${tool}`);
   }
 
   assert.deepEqual(titles(node.inputs), ["instanceId", "nodeId", "agent_run_id"]);
-  assertEdge("read_node", "instanceId", "start", "instanceId");
-  assertEdge("read_node", "nodeId", "start", "nodeId");
-  assertEdge("read_node", "agent_run_id", "start", "cinatra_run_id");
+  assertEdge("read_page", "instanceId", "start", "instanceId");
+  assertEdge("read_page", "nodeId", "start", "nodeId");
+  assertEdge("read_page", "agent_run_id", "start", "cinatra_run_id");
+  assert.deepEqual(titles(node.outputs), ["instanceId", "nodeId", "nid", "uuid", "language", "published", "fields", "binding"]);
 
-  assert.deepEqual(titles(node.outputs), ["title", "body", "fieldValues", "address", "error", "nodeStatus", "nodeBundle", "nodeLanguage", "nodeChanged"]);
-  assert.equal(declared(node.outputs, "nodeLanguage").type, "string");
-  assert.equal(declared(node.outputs, "nodeChanged").type, "string");
-  assert.equal(declared(node.outputs, "title").type, "string");
-  assert.equal(declared(node.outputs, "body").type, "string");
-  assert.equal(declared(node.outputs, "address").type, "string");
-  assertStringItems(declared(node.outputs, "fieldValues"));
-  const error = declared(node.outputs, "error");
+  const check = part("check_read");
+  assert.ok(check.url.includes(PASSTHROUGH_PATH), "the check step is a passthrough step");
+  assert.equal(check.data.tool, "extension_tool");
+  assert.equal(check.data.input.name, "reviewed_change");
+  assert.equal(check.data.input.input.op, "page");
+  assert.deepEqual(titles(check.outputs), ["nodeId", "instanceId", "status", "title", "body", "fieldValues", "address", "error", "ok"]);
+  assert.equal(declared(check.outputs, "title").type, "string");
+  assert.equal(declared(check.outputs, "body").type, "string");
+  assert.equal(declared(check.outputs, "address").type, "string");
+  assertStringItems(declared(check.outputs, "fieldValues"));
+  const error = declared(check.outputs, "error");
   assert.equal(error.type, "object");
   assert.deepEqual(memberKeys(error.json_schema), ["code", "message"]);
 });
@@ -351,8 +374,9 @@ test("S3 the compose step answers the values to write; the form the code builds 
 
   assertEdge("compose_change", "instructions", "start", "instructions");
   for (const output of ["title", "body", "fieldValues", "address", "error"]) {
-    assertEdge("compose_change", output, "read_node", output);
+    assertEdge("compose_change", output, "check_read", output);
   }
+  assert.deepEqual(node.metadata.cinatra.tools, [], "the compose step declares no tool");
 
   assert.deepEqual(titles(node.outputs), ["pageTitle", "writeFields"]);
   assert.equal(declared(node.outputs, "pageTitle").type, "string");
@@ -392,7 +416,6 @@ test("S3 the compose step answers the values to write; the form the code builds 
       error: JSON.stringify({ code: "", message: "" }),
       nodeId: JSON.stringify("7"),
       nodeStatus: JSON.stringify("published"),
-      nodeChanged: JSON.stringify("1764000000"),
     },
     ports: {},
   });
@@ -474,8 +497,8 @@ test("S4 the filing step files the page form as the display's type, and the pack
   assert.equal(input.title, "{{ pageTitle }}");
   assert.equal(input.content, "{# pyagentspec-input-hint (do not remove): {{ pageForm }} #}{{ pageForm | tojson }}");
   assert.equal(node.data.agent_run_id, "{{ cinatra_run_id }}");
-  assertEdge("file_page", "pageTitle", "read_node", "title");
-  assert.equal(edgesInto("file_page", "pageTitle").length, 1, "the filed title has one source, the read step");
+  assertEdge("file_page", "pageTitle", "check_read", "title");
+  assert.equal(edgesInto("file_page", "pageTitle").length, 1, "the filed title has one source, the check of the read");
   assertEdge("file_page", "pageForm", "form_page", "pageForm");
   assertEdge("file_page", "cinatra_run_id", "start", "cinatra_run_id");
   assert.deepEqual(titles(node.outputs), ["artifactId", "representationRevisionId"]);
@@ -510,8 +533,8 @@ test("S5 the projection step names the filed revision to the review step, the fl
   assert.equal(gate.metadata.cinatra.a2uiSurfaceId, "drupal-agent:page-review");
   assert.ok(titles(gate.inputs).includes("reviewTargets"), "the review step declares the input its marker names");
   assertEdge("page_review_gate", "reviewTargets", "gather_page_review", "reviewTargets");
-  assertEdge("page_review_gate", "pageTitle", "read_node", "title");
-  assert.equal(edgesInto("page_review_gate", "pageTitle").length, 1, "the title the review shows has one source, the read step");
+  assertEdge("page_review_gate", "pageTitle", "check_read", "title");
+  assert.equal(edgesInto("page_review_gate", "pageTitle").length, 1, "the title the review shows has one source, the check of the read");
 
   const node = part("gather_page_review");
   assert.equal(node.component_type, "ApiNode");
@@ -547,31 +570,27 @@ test("S5 the projection step names the filed revision to the review step, the fl
   assert.deepEqual(pauses, ["page_review_gate"], "exactly one InputMessageNode in the flow");
 });
 
-test("S6 the write step follows the review and the read of the reviewed revision", () => {
-  const node = part("load_node");
-  const into = (oas.control_flow_connections ?? []).filter((e) => e.to_node.$component_ref === "load_node");
+test("S6 the write steps follow the review and the read of the reviewed revision", () => {
+  for (const write of ["write_draft", "write_unpublished"]) {
+    const into = (oas.control_flow_connections ?? []).filter((e) => e.to_node.$component_ref === write);
+    assert.deepEqual(into.map((e) => e.from_node.$component_ref), ["route_status"], `the only control edge into ${write} comes from the branch on the status`);
+    assertEdge(write, "reviewedFields", "read_reviewed_page", "reviewedFields");
+    assertEdge(write, "reviewedSnapshot", "read_reviewed_page", "reviewedSnapshot");
+    assertEdge(write, "binding", "read_page", "binding");
+    assert.deepEqual(titles(part(write).outputs), ["ok", "code", "message", "nodeId", "revision_id", "fields", "applied"]);
+  }
   assert.deepEqual(
-    into.map((e) => e.from_node.$component_ref),
+    (oas.control_flow_connections ?? []).filter((e) => e.to_node.$component_ref === "route_status").map((e) => e.from_node.$component_ref),
     ["read_reviewed_page"],
-    "the only control edge into the write step comes from the read of the reviewed revision",
+    "the branch on the status follows only the read of the reviewed revision",
   );
-  assertEdge("load_node", "artifactId", "file_page", "artifactId");
-  assertEdge("load_node", "representationRevisionId", "read_reviewed_page", "reviewedRevisionId");
-  assertEdge("load_node", "reviewedFields", "read_reviewed_page", "reviewedFields");
-  assertEdge("load_node", "reviewedPublish", "read_reviewed_page", "reviewedPublish");
-  for (const output of ["title", "body", "fieldValues"]) {
-    assertEdge("load_node", output, "read_node", output);
-  }
-  for (const tool of WRITE_TOOLS) {
-    assert.ok(node.data.system.includes(tool), `the write step names ${tool}`);
-  }
-  assert.deepEqual(titles(node.outputs), ["nodeId", "changes", "reason", "outcome"]);
+  assert.equal(part("write_draft").data.tool, "drupal_node_create_draft_revision");
+  assert.equal(part("write_unpublished").data.tool, "drupal_node_update");
 });
 
 test("S7 the declared module files the set it is handed and nothing else", async () => {
   assert.deepEqual(pkg.cinatra.tools, [
     { name: "review_targets", module: "./cinatra/tools/review-targets.mjs" },
-    { name: "settle_outcome", module: "./cinatra/tools/settle-outcome.mjs" },
     { name: "reviewed_change", module: "./cinatra/tools/reviewed-change.mjs" },
   ]);
   const { extensionTool } = await import("../cinatra/tools/review-targets.mjs");
@@ -603,8 +622,8 @@ test("S7 the declared module files the set it is handed and nothing else", async
 
 test("S8 the end node preserves the content outputs with a visible refusal reason and binds nothing: the snapshot is filed during the run", () => {
   const end = part("end");
-  assert.deepEqual(titles(end.outputs), ["nodeId", "changes", "reason"]);
-  assert.deepEqual(titles(oas.outputs), ["nodeId", "changes", "reason"]);
+  assert.deepEqual(titles(end.outputs), ["nodeId", "changes", "reason", "error"]);
+  assert.deepEqual(titles(oas.outputs), ["nodeId", "changes", "reason", "error"]);
   assert.deepEqual(
     (end.outputs ?? []).filter((o) => o.cinatra?.artifact).map((o) => o.title),
     [],
@@ -615,8 +634,8 @@ test("S8 the end node preserves the content outputs with a visible refusal reaso
     [],
     "no flow output carries a binding",
   );
-  assertEdge("end", "nodeId", "load_node", "nodeId");
-  assertEdge("end", "changes", "load_node", "changes");
+  assertEdge("end", "nodeId", "write_outcome", "nodeId");
+  assertEdge("end", "changes", "write_outcome", "changes");
   const filings = (oas.nodes ?? [])
     .map((n) => n.$component_ref)
     .filter((id) => parts[id]?.data?.tool === "artifact_materialize");
