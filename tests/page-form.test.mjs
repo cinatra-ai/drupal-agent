@@ -15,7 +15,9 @@
 // words change, and every block that is not shown is byte for byte the read.
 // What the display still cannot show is refused before anything is filed: a
 // block that changes only in its white space (the display's parser rejects a
-// block whose two sides hold the same words), and more than 200 blocks.
+// block whose two sides hold the same words), a change that adds, removes or
+// moves a character that draws nothing or changes the text's direction, and
+// more than 200 blocks.
 //
 // A change that changes nothing (no values, or values equal to the read, and
 // no publish) files nothing: `form_page` answers `next: "no_change"` and the
@@ -374,4 +376,134 @@ test("F12 a change whose compared part is too large is refused at the form and a
     (err) => refusedWithCode(err) && err.message.includes("characters in all"),
     "too long a read, at the read-back",
   );
+});
+
+test("F13 the splitting stops at the block limit: a value of a million blocks creates no more than the limit plus one blocks", async () => {
+  const { pageExcerpts } = await load();
+  const limit = 40_000;
+  const read = { title: "Opening hours", body: "", fieldValues: [] };
+  const values = {
+    "a million empty paragraphs": "<p/>".repeat(999_999),
+    "a list of 400,000 items": `<ul>${"<li>x</li>".repeat(399_000)}</ul>`,
+  };
+  for (const [name, value] of Object.entries(values)) {
+    const meter = { blocks: 0 };
+    assert.throws(
+      () => pageExcerpts(read, { fields: [{ field: "body", value }] }, meter),
+      (err) => refusedWithCode(err) && err.message.includes("blocks in all"),
+      name,
+    );
+    assert.equal(meter.blocks, limit + 1, `${name}: the splitting stopped at the limit, not after ${meter.blocks} blocks`);
+  }
+  const meter = { blocks: 0 };
+  pageExcerpts(read, { fields: [{ field: "body", value: "<p>One</p><p>Two</p>" }] }, meter);
+  assert.equal(meter.blocks, 2, "a value under the limit is split whole");
+});
+
+// --- invisible characters ----------------------------------------------------
+
+const INVISIBLE_RE = /U\+[0-9A-F]{4,6}/;
+const refusedInvisible = (codePoint, verb, region = "body") => (err) =>
+  refusedWithCode(err) && err.message.includes(`${verb} an invisible character ${codePoint} in the ${region}`);
+
+test("F14 a change that adds an invisible or direction-changing character is refused, naming its code point", async () => {
+  const { extensionTool } = await load();
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody("\u200B"), bodyRead("")), ports: {} }),
+    refusedInvisible("U+200B", "adds"),
+    "an empty body to a zero-width space",
+  );
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody(READ.body.replace("weekdays", "week\u202Edays"))), ports: {} }),
+    refusedInvisible("U+202E", "adds"),
+    "a direction override inside a visible word",
+  );
+  const added = {
+    "U+200D": "\u200D", "U+2060": "\u2060", "U+FEFF": "\uFEFF", "U+2066": "\u2066", "U+200E": "\u200E", "U+061C": "\u061C",
+    "U+0007": "\u0007", "U+0085": "\u0085", "U+2009": "\u2009", "U+202F": "\u202F", "U+3000": "\u3000",
+    "U+2028": "\u2028", "U+2029": "\u2029", "U+00AD": "\u00AD", "U+3164": "\u3164", "U+E0041": "\u{E0041}",
+  };
+  for (const [codePoint, ch] of Object.entries(added)) {
+    await assert.rejects(
+      extensionTool({ input: formCall(withBody(READ.body.replace("nine", `ten${ch}`))), ports: {} }),
+      refusedInvisible(codePoint, "adds"),
+      codePoint,
+    );
+  }
+  await assert.rejects(
+    extensionTool({ input: formCall({ fields: [{ field: "title", value: "Opening\u200B hours" }], publish: false }), ports: {} }),
+    refusedInvisible("U+200B", "adds", "title"),
+    "in the title",
+  );
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody(READ.body.replace("nine", "ni\u200Bne"))), ports: {} }),
+    refusedInvisible("U+200B", "adds"),
+    "inside an unchanged word, where the visible text is the same",
+  );
+});
+
+test("F15 a page that already holds invisible characters can be edited elsewhere and around them; removing one, or moving it off its visible neighbours, is refused", async () => {
+  const { extensionTool } = await load();
+  const before = "<p>Open at 10\u00A0am</p><p>See the in\u00ADformation desk.</p><p>Ask at the desk\u200B.</p><p>We open at nine.</p>";
+  const edits = {
+    "another block": before.replace("nine", "ten"),
+    "the same block as a soft hyphen": before.replace("desk.</p>", "counter.</p>"),
+    "words changed on both sides of a zero-width space": before.replace("Ask at the desk\u200B.", "Please ask at the front desk\u200B. Thank you."),
+  };
+  for (const [name, after] of Object.entries(edits)) {
+    const { pageForm } = await extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} });
+    assert.equal(pageForm.writeFields.fields[0].value, after, name);
+    const back = await extensionTool({ input: readCall(bodyRead(before)), ports: portsWith(pageForm) });
+    assert.deepEqual(back.reviewedFields, [{ field: "body", value: after }], `${name}, at the read-back`);
+  }
+  const refused = {
+    "removing a zero-width space": [before.replace("desk\u200B.", "desk."), "U+200B", "removes"],
+    "moving a zero-width space inside unchanged words": [before.replace("desk\u200B.", "de\u200Bsk."), "U+200B", "adds"],
+    "moving a zero-width space by an edit next to it": [before.replace("desk\u200B.", "desks\u200B."), "U+200B", "moves"],
+    "removing a soft hyphen with its word": [before.replace("in\u00ADformation", "help"), "U+00AD", "removes"],
+  };
+  for (const [name, [after, codePoint, verb]] of Object.entries(refused)) {
+    await assert.rejects(
+      extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} }),
+      refusedInvisible(codePoint, verb),
+      name,
+    );
+  }
+});
+
+test("F16 a no-break space is taken as a space: added with a change of words it is filed; added alone it is a change of white space", async () => {
+  const { extensionTool } = await load();
+  const after = READ.body.replace("nine", "ten\u00A0am");
+  const { pageForm } = await extensionTool({ input: formCall(withBody(after)), ports: {} });
+  assert.equal(pageForm.writeFields.fields[0].value, after);
+  await assert.rejects(
+    extensionTool({ input: formCall(withBody(READ.body.replace("We open", "We\u00A0open"))), ports: {} }),
+    (err) => refusedWithCode(err) && err.message.includes("only in white space") && !INVISIBLE_RE.test(err.message),
+  );
+});
+
+test("F17 removing a joiner from an emoji sequence changes what is drawn and is refused; so is replacing the sequence", async () => {
+  const { extensionTool } = await load();
+  const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
+  const before = `<p>Families welcome ${family}</p>`;
+  for (const [name, after] of [
+    ["a joiner removed", `<p>Families welcome \u{1F468}\u{1F469}\u200D\u{1F467}</p>`],
+    ["the sequence replaced", "<p>Families welcome \u{1F389}</p>"],
+  ]) {
+    await assert.rejects(
+      extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} }),
+      refusedInvisible("U+200D", "removes"),
+      name,
+    );
+  }
+  const { pageForm } = await extensionTool({ input: formCall(withBody(`<p>All families welcome ${family}</p>`), bodyRead(before)), ports: {} });
+  assert.equal(pageForm.excerpts.length, 1, "an edit elsewhere in the block keeps the sequence and is filed");
+});
+
+test("F18 the read-back applies the same rule to the approved revision", async () => {
+  const { extensionTool } = await load();
+  const after = READ.body.replace("nine", "ten\u200B");
+  const shown = [{ region: "body", position: 1, kind: "paragraph", level: null, published: '<p>We open at <a href="/hours">nine</a> on weekdays.</p>', proposed: '<p>We open at <a href="/hours">ten\u200B</a> on weekdays.</p>' }];
+  const snapshot = { cinatraCmsPage: 1, system: "drupal", page: PAGE, writeFields: withBody(after), excerpts: shown };
+  await assert.rejects(extensionTool({ input: readCall(), ports: portsWith(snapshot) }), refusedInvisible("U+200B", "adds"));
 });
