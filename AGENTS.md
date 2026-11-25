@@ -10,7 +10,7 @@ There is no producer-side code in this repo for repair, and none is needed: unde
 
 **This declaration has no effect by itself.** It only starts doing anything once cinatra's pin for this package advances to a version carrying it — until then `repairCapable` is a harmless, unused label on the manifest. The `changes_requested` route resolves it from `agent_templates.lifecycle_config`, which is compiled from this block at install time.
 
-**Repair rounds never widen what this agent writes.** A repair round is subject to the same rules as any other edit: one atomic protected same-node draft edit for a published node, only the fields the findings name, and never `drupal_node_publish` unless a human explicitly asked. It also carries a no-content-write guard — when nothing named in the findings is actionable, or every requested value already matches the node, the agent makes NO Drupal content write at all (not even a draft revision) and returns the NO-CHANGE RESULT shape (empty `changes`, no `proposalId`). That guard is scoped to CONTENT writes: an explicit user request to publish is still honoured exactly as before (a reviewer finding is never a publish request).
+**Repair rounds never widen what this agent writes.** A repair round is subject to the same rules as any other edit: one atomic protected same-node draft edit for a published node, only the fields the findings name, and never `drupal_node_publish` unless a human explicitly asked. It also carries a no-content-write guard — when nothing named in the findings is actionable, or every requested value already matches the node, the agent makes NO Drupal content write at all (not even a draft revision) and returns the NO-CHANGE RESULT shape (empty `changes`, no `proposalId`). That guard is scoped to CONTENT writes: an explicit user request to publish is still honoured together with a reviewed change of text (a reviewer finding is never a publish request).
 
 ## Agent role
 
@@ -62,6 +62,21 @@ branch `route_change` takes the run to `no_change_outcome` (the
 `emit_output` → `end`. The run completes with empty `changes` and an empty
 reason, and no Drupal call is made. Any other `next` goes to the review.
 
+Only a successful read leads to either road. `reviewed_change` accepts the
+read only when its `error` is an object whose `code` and `message` are both
+empty, its `nodeStatus` is `published` or `draft`, its `nodeChanged` and its
+title are not empty, its `fieldValues` is a list and the run's `nodeId` is not
+empty. Any other read, of any shape (`{}`, `{message}`, `null`, a text, a
+missing input or a flow default), fails the run with the read's own message,
+or a fixed one, and never ends it as a change of nothing.
+
+A publish with no change of text is refused at `form_page`, and nothing is
+filed: the page display draws only changed text blocks (its parser refuses a
+snapshot with no excerpts) and no node status, and the publish card opens only
+after an approved review in the same run. The display would need a page-level
+status change it draws, or an excerpt kind for one that its parser accepts
+without a text excerpt, before such a request can be reviewed.
+
 `compose_change` answers only the values to write, `writeFields`: `fields`
 (one `{field, value}` per changed field, the complete new value) and `publish`
 (true only on the user's explicit request to publish). `form_page` calls the
@@ -85,9 +100,14 @@ The tool refuses, so the run fails with `reviewed_change_unavailable` and a
 message and no Drupal call is made, when the answer names no approved revision
 of the filed artifact (another artifact, no target, no approval), when the read
 fails, is cut short or answers another revision or artifact, when the text
-is not a Drupal page snapshot or carries no values to write, and when the text
+is not a Drupal page snapshot or carries no field to write, when the text
 shows other blocks than the ones `pageExcerpts` derives from its values and the
-read.
+read, and when the revision is not, as a whole, a snapshot of this run's node.
+One check, `checkedSnapshot`, applies to what `form_page` files and to the
+approved revision: the display's parser accepts it (`displayReading` restates
+its rules), each excerpt has exactly the form `pageExcerpts` builds, and the
+page record equals the one built from this run's read: `nodeId`, `status`,
+`title`, `address` and `cmsAddress`. A difference names the part that differs.
 
 ### What the reviewer sees of the values to write
 

@@ -9,9 +9,16 @@
  * blocks the display shows (`excerpts`) are derived from those values by
  * `pageExcerpts`, in code: each changed block is shown as its
  * source text, so everything written for it is shown. A change the display
- * cannot show is refused, and nothing is filed. It also answers `next`:
- * `no_change` when the values change nothing and ask for no publish, so the
- * flow ends the run past the filing and the review; `review` otherwise.
+ * cannot show is refused, and nothing is filed: so is a publish with no
+ * change of text, for which the display has nothing to draw. It also answers
+ * `next`: `no_change` when the values change nothing and ask for no publish,
+ * so the flow ends the run past the filing and the review; `review`
+ * otherwise. What it files passes `checkedSnapshot`, the one check the
+ * read-back applies to the approved revision too.
+ *
+ * Every operation takes the read only when it is a successful read
+ * (`checkedRead`); any other read is refused and never ends the run as a
+ * change of nothing.
  *
  * `op: unchanged` is the step of that no-change road. It derives the blocks
  * again, refuses unless the values still change nothing and ask for no
@@ -21,9 +28,11 @@
  * and answers its values. The write step takes the values it writes only from
  * this answer, so it can write nothing the reviewed snapshot did not hold. The
  * read derives the blocks again from those values and the same read, and
- * refuses when the reviewed text shows other blocks, or when it would write a
+ * refuses when the reviewed text shows other blocks, when it would write a
  * field that none of the derived blocks shows (so a field whose value equals
- * the read is never written, though the snapshot names it).
+ * the read is never written, though the snapshot names it), and when the
+ * revision, as a whole, is not a snapshot of this run's node that the display
+ * draws (`checkedSnapshot`).
  *
  * - The revision read is the one the review's answer names for the filed
  *   artifact, never the one this run filed: after a Regenerate the approved
@@ -60,8 +69,8 @@ const REFUSAL_NAME = "ExtensionToolCallRefusal";
 /** The host repeats a refusal sentence of at most this many characters. */
 const SENTENCE_MAX = 400;
 
-function refuse(cause) {
-  const line = `${CODE}: nothing was written, because ${cause}; start a new run.`.replace(/\s+/g, " ").trim();
+function refuse(cause, next = "start a new run") {
+  const line = `${CODE}: nothing was written, because ${cause}; ${next}.`.replace(/\s+/g, " ").trim();
   const error = new Error(line.length <= SENTENCE_MAX ? line : `${line.slice(0, SENTENCE_MAX - 1).trimEnd()}…`);
   error.name = REFUSAL_NAME;
   throw error;
@@ -133,8 +142,8 @@ function valuesToWrite(text) {
     if (seen.has(item.field)) refuse(`the reviewed revision names the field ${item.field} twice`);
     seen.add(item.field);
   }
-  if (writeFields.fields.length === 0 && writeFields.publish !== true) {
-    refuse("the reviewed revision carries no values to write");
+  if (writeFields.fields.length === 0) {
+    refuse("the reviewed revision carries no field to write");
   }
   return {
     fields: writeFields.fields.map((item) => ({ field: item.field, value: item.value })),
@@ -502,10 +511,131 @@ export function pageExcerpts(read, writeFields) {
   return excerpts;
 }
 
-/** Whether the read step answered a failure: an error that is not an object, or a non-empty code. */
-function readFailed(call) {
+/** The statuses a successful read answers (the read step's `nodeStatus`). */
+const READ_STATUSES = new Set(["published", "draft"]);
+
+/**
+ * THE READ, accepted only when it is a successful read. A successful read
+ * always carries: an error object whose `code` and `message` are both the
+ * empty text (the read step's contract for a successful read), a status of
+ * `published` or `draft`, a non-empty change time, a non-empty title and a
+ * list of `field_` text values, for a non-empty node id of the run. Anything
+ * else is a failed read, whatever its shape: `{}`, `{ message }`, `null`, a
+ * text, a missing input and each flow default that stands in for one. A failed
+ * read is refused with its own message when it has one, else with a fixed one;
+ * it never leads to a filing or to the no-change outcome.
+ */
+function checkedRead(call) {
   const error = parseJson(readText(call.error));
-  return !isPlainObject(error) || (typeof error.code === "string" ? error.code.trim() !== "" : error.code !== undefined);
+  if (!isPlainObject(error) || error.code !== "" || error.message !== "") {
+    const message = isPlainObject(error) && typeof error.message === "string" ? error.message.trim() : "";
+    refuse(message !== "" ? `the read of the node failed: ${message}` : "no successful read of the node was handed to this step");
+  }
+  const nodeId = readText(call.nodeId).trim();
+  if (nodeId === "") refuse("no node id was handed to this step");
+  const status = readText(call.nodeStatus).trim();
+  if (!READ_STATUSES.has(status)) refuse("the read answered no status of published or draft, so it was not a successful read");
+  const changed = readText(call.nodeChanged).trim();
+  if (changed === "") refuse("the read answered no change time, so it was not a successful read");
+  const values = readValuesOf(call);
+  if (values.get("title").trim() === "") refuse("the read answered no title, so it was not a successful read");
+  return { nodeId, status, values, address: readText(call.address).trim() };
+}
+
+/** The page record the snapshot files: the node of this run's read, as the display's top shows it. */
+function pageOf(read) {
+  const address = read.address === "" ? null : read.address;
+  return {
+    nodeId: read.nodeId,
+    status: read.status,
+    title: read.values.get("title"),
+    address,
+    cmsAddress: address === null ? null : `${address}/edit`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// THE ONE CHECK OF A PAGE SNAPSHOT, used by `op: form` on what it files and by
+// `op: read` on the approved revision.
+//
+// `displayReading` restates the rules by which the display's parser accepts a
+// snapshot (cinatra-ai/website-artifacts, src/cms-page-model.ts, parseCmsPage):
+// the marker and its version, at least one excerpt and at most 200, a system it
+// knows, a page record with a text title, and each excerpt with a region, a
+// whole position of 0 or more, a kind it draws, two text sides that do not hold
+// the same words, a heading level of 1 to 6 (2 when absent), and positions that
+// rise between consecutive excerpts of one region. It answers the parser's
+// reason. `checkedSnapshot` adds what this pack files: the Drupal system, each
+// excerpt with exactly the keys and the level form `pageExcerpts` builds, and a
+// page record equal, key by key, to the one built from this run's read.
+// ---------------------------------------------------------------------------
+
+const DISPLAY_SYSTEMS = ["wordpress", "drupal"];
+const DISPLAY_KINDS = ["heading", "paragraph", "list-item"];
+const EXCERPT_KEYS = ["kind", "level", "position", "proposed", "published", "region"];
+const PAGE_PARTS = [
+  ["nodeId", "node id"],
+  ["status", "status"],
+  ["title", "title"],
+  ["address", "address"],
+  ["cmsAddress", "edit address"],
+];
+
+/** Whether the display's parser accepts one excerpt. */
+function displayDrawsExcerpt(value) {
+  if (!isPlainObject(value)) return false;
+  const { region, position, kind, level, published, proposed } = value;
+  if (typeof region !== "string" || region.length === 0) return false;
+  if (typeof position !== "number" || !Number.isInteger(position) || position < 0) return false;
+  if (typeof kind !== "string" || !DISPLAY_KINDS.includes(kind)) return false;
+  if (typeof published !== "string" || typeof proposed !== "string") return false;
+  if (sameWords(published, proposed)) return false;
+  if (kind === "heading" && level !== undefined && !(typeof level === "number" && Number.isInteger(level) && level >= 1 && level <= 6)) {
+    return false;
+  }
+  return true;
+}
+
+/** The display parser's answer for a snapshot: `{ ok: true }` or `{ ok: false, reason }`, with its reasons. */
+export function displayReading(form) {
+  if (!isPlainObject(form) || !Object.prototype.hasOwnProperty.call(form, "cinatraCmsPage")) return { ok: false, reason: "not-the-form" };
+  if (form.cinatraCmsPage !== 1) return { ok: false, reason: "form-version" };
+  const { excerpts, system, page } = form;
+  if (excerpts === undefined || (Array.isArray(excerpts) && excerpts.length === 0)) return { ok: false, reason: "no-excerpts" };
+  if (typeof system !== "string" || !DISPLAY_SYSTEMS.includes(system)) return { ok: false, reason: "malformed" };
+  if (!isPlainObject(page) || typeof page.title !== "string") return { ok: false, reason: "malformed" };
+  if (!Array.isArray(excerpts) || excerpts.length > MAX_EXCERPTS) return { ok: false, reason: "malformed" };
+  let previous;
+  for (const excerpt of excerpts) {
+    if (!displayDrawsExcerpt(excerpt)) return { ok: false, reason: "malformed" };
+    if (previous !== undefined && previous.region === excerpt.region && excerpt.position <= previous.position) {
+      return { ok: false, reason: "malformed" };
+    }
+    previous = excerpt;
+  }
+  return { ok: true };
+}
+
+/** THE ONE CHECK: refuses, naming the part that differs, unless the snapshot is one the display draws of this node. */
+export function checkedSnapshot(form, page) {
+  if (isPlainObject(form) && !isPlainObject(form.page)) refuse("the page snapshot carries no page record");
+  const reading = displayReading(form);
+  if (!reading.ok) refuse(`the page snapshot is not one the page display draws (${reading.reason})`);
+  if (form.system !== "drupal") refuse("the page snapshot is not a Drupal page snapshot");
+  const keys = Object.keys(form.page).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(PAGE_PARTS.map(([key]) => key).sort())) {
+    refuse("the page record of the page snapshot holds other keys than the node id, status, title, address and edit address");
+  }
+  for (const [key, name] of PAGE_PARTS) {
+    if (form.page[key] !== page[key]) refuse(`the page record of the page snapshot names another ${name} than this run's read of the node`);
+  }
+  for (const excerpt of form.excerpts) {
+    if (JSON.stringify(Object.keys(excerpt).sort()) !== JSON.stringify(EXCERPT_KEYS)) {
+      refuse("a changed block of the page snapshot holds other keys than the ones the page snapshot form builds");
+    }
+    const levelOk = excerpt.kind === "heading" ? Number.isInteger(excerpt.level) : excerpt.level === null;
+    if (!levelOk) refuse("a changed block of the page snapshot has a level that is not the form the page snapshot builds");
+  }
 }
 
 /** The values to write as the compose step answers them, checked. */
@@ -539,32 +669,34 @@ function changedOf(values, writeFields) {
 /** `op: form` — the page snapshot to file, built from the read and the values to write, and the road it takes. */
 function form(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
-  if (readFailed(call)) refuse("the read failed, so there is nothing to file");
-  const values = readValuesOf(call);
-  const address = readText(call.address).trim();
-  const changed = changedOf(values, writeFields);
-  const excerpts = pageExcerpts(values, changed);
-  return {
-    ok: true,
-    next: changed.fields.length === 0 && !changed.publish ? "no_change" : "review",
-    pageForm: {
-      cinatraCmsPage: 1,
-      system: "drupal",
-      page: { title: values.get("title"), address: address === "" ? null : address, cmsAddress: address === "" ? null : `${address}/edit` },
-      writeFields: changed,
-      excerpts,
-    },
-  };
+  const read = checkedRead(call);
+  const changed = changedOf(read.values, writeFields);
+  if (changed.fields.length === 0 && changed.publish) {
+    // A publish with no change of text stages no content, and the page display
+    // draws only changed text blocks and no node status: there is nothing true
+    // for it to draw, and the publish card opens only after an approved review.
+    refuse(
+      "a publish with no change of text cannot be reviewed on the page display yet: the display draws only changed text blocks, never the node's status",
+      "ask for the publish together with a change of text, or publish the node on the site",
+    );
+  }
+  const excerpts = pageExcerpts(read.values, changed);
+  if (changed.fields.length === 0) {
+    return { ok: true, next: "no_change", pageForm: {} };
+  }
+  const page = pageOf(read);
+  const pageForm = { cinatraCmsPage: 1, system: "drupal", page, writeFields: changed, excerpts };
+  checkedSnapshot(pageForm, page);
+  return { ok: true, next: "review", pageForm };
 }
 
 /** `op: unchanged` — the outcome of a change that changes nothing: the node, no changes, no reason. */
 function unchanged(call) {
   const writeFields = checkedWriteFields(parseJson(readText(call.writeFields)));
-  if (readFailed(call)) refuse("the read failed, so nothing is known to need no change");
+  const read = checkedRead(call);
   if (writeFields.publish) refuse("the request asks to publish, which needs the review");
-  const values = readValuesOf(call);
-  if (changedOf(values, writeFields).fields.length > 0) refuse("the values to write change the node, which needs the review");
-  return { ok: true, nodeId: readText(call.nodeId).trim(), changes: [], reason: "" };
+  if (changedOf(read.values, writeFields).fields.length > 0) refuse("the values to write change the node, which needs the review");
+  return { ok: true, nodeId: read.nodeId, changes: [], reason: "" };
 }
 
 const excerptKey = (list) =>
@@ -575,7 +707,7 @@ const excerptKey = (list) =>
 async function read(call, ports) {
   const artifactId = readText(call.artifactId).trim();
   if (artifactId === "") refuse("the run filed no page snapshot");
-  const readValues = readValuesOf(call);
+  const readNode = checkedRead(call);
   const revisionId = approvedRevision(readText(call.reviewAnswer), artifactId);
   let result;
   try {
@@ -592,8 +724,8 @@ async function read(call, ports) {
     refuse("the read answered another artifact than the reviewed one");
   }
   const values = valuesToWrite(result.text);
-  if (!Array.isArray(values.shown)) refuse("the reviewed revision shows no changed blocks");
-  const derived = pageExcerpts(readValues, values);
+  checkedSnapshot(parseJson(result.text), pageOf(readNode));
+  const derived = pageExcerpts(readNode.values, values);
   const regions = new Set(derived.map((e) => e.region));
   for (const item of values.fields) {
     if (!regions.has(item.field)) refuse(`the reviewed revision would write the field ${item.field}, which its shown blocks do not show`);

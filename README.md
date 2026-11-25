@@ -2,7 +2,7 @@
 
 Edit Drupal content from plain-language instructions and return a field diff for review. A published page is never edited in place: the agent saves the change as an unpublished draft revision of the SAME node, and the live page stays unchanged until someone publishes that draft. This needs the Cinatra Drupal module's protected draft tools on the site and a Content Moderation workflow with an unpublished draft state; without them the agent refuses before any content write and never creates a separate page.
 
-**Install.** Install from the Cinatra marketplace; use the Drupal connector configured in your workspace.
+**Install.** Install from the Cinatra marketplace; use your workspace's Drupal connector.
 
 **Configuration.** Each call's `instanceId` selects a connected Drupal site.
 
@@ -12,7 +12,7 @@ Edit Drupal content from plain-language instructions and return a field diff for
 
 **API contract.** Inputs are strings; `changes` holds `{field, before, after}`. The write takes every value and the publish flag only from the approved page snapshot revision, read back after the review; a publish also needs an explicit request. A published edit is one `drupal_node_create_draft_revision` call that saves the draft and reads it back, never followed by a generic live-default update.
 
-**Troubleshooting.** A refused edit ends the run as failed with the reason: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reads are required. A reviewed revision that cannot be read in full or holds no values fails the run (`reviewed_change_unavailable`) before any site call. A refusal after dispatch may leave a draft. A separate page requires explicit choice. Empty `changes` in a completed run mean no edit needed or publish-only; a reviewed change that saved nothing ends the run as failed, never as an empty diff.
+**Troubleshooting.** A refused edit ends the run as failed with the reason: Content Moderation, an authorized non-published/non-default transition and exact-revision MCP reads are required. A reviewed revision that is unreadable, of another node or empty fails the run (`reviewed_change_unavailable`) before any site call. A refusal after dispatch may leave a draft. A separate page requires explicit choice. Empty `changes` in a completed run mean no edit needed (a publish alone is refused); a reviewed change that saved nothing ends the run as failed, never as an empty diff.
 
 ## Works with
 

@@ -1189,6 +1189,126 @@
         "$component_ref": "end"
       },
       "destination_input": "reason"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_form_page_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_nodeStatus",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeStatus",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_form_page_nodeChanged",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeChanged",
+      "destination_node": {
+        "$component_ref": "form_page"
+      },
+      "destination_input": "nodeChanged"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_nodeStatus",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeStatus",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_no_change_outcome_nodeChanged",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeChanged",
+      "destination_node": {
+        "$component_ref": "no_change_outcome"
+      },
+      "destination_input": "nodeChanged"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_to_read_reviewed_page_nodeId",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "nodeId",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "nodeId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_address",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "address",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "address"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_error",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "error",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "error"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_nodeStatus",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeStatus",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "nodeStatus"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "read_node_to_read_reviewed_page_nodeChanged",
+      "source_node": {
+        "$component_ref": "read_node"
+      },
+      "source_output": "nodeChanged",
+      "destination_node": {
+        "$component_ref": "read_reviewed_page"
+      },
+      "destination_input": "nodeChanged"
     }
   ],
   "$referenced_components": {
@@ -1471,7 +1591,10 @@
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
             "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
             "address": "{# pyagentspec-input-hint (do not remove): {{ address }} #}{{ address | tojson }}",
-            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}"
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}",
+            "nodeChanged": "{# pyagentspec-input-hint (do not remove): {{ nodeChanged }} #}{{ nodeChanged | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
@@ -1554,6 +1677,21 @@
           "default": {}
         },
         {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeChanged",
+          "type": "string",
+          "default": ""
+        },
+        {
           "title": "cinatra_run_id",
           "type": "string",
           "default": ""
@@ -1575,6 +1713,16 @@
               "page": {
                 "type": "object",
                 "properties": {
+                  "nodeId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "draft"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -1669,7 +1817,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent builds the page snapshot in code from the read and the values to write: each changed block the review shows is its source text, derived from those values. A change the snapshot cannot show, such as a change of white space alone, ends the run here and nothing is filed or written. A change of nothing takes the run to its end without a review."
+          "description": "The agent builds the page snapshot in code from the read and the values to write: each changed block the review shows is its source text, derived from those values. A change the snapshot cannot show, such as a change of white space alone or a publish with no change of text, ends the run here and nothing is filed or written; so does a read that was not successful. A change of nothing takes the run to its end without a review."
         }
       }
     },
@@ -1712,6 +1860,16 @@
               "page": {
                 "type": "object",
                 "properties": {
+                  "nodeId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "published",
+                      "draft"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -1932,7 +2090,12 @@
             "reviewAnswer": "{# pyagentspec-input-hint (do not remove): {{ reviewAnswer }} #}{{ reviewAnswer | tojson }}",
             "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
-            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}"
+            "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
+            "nodeId": "{# pyagentspec-input-hint (do not remove): {{ nodeId }} #}{{ nodeId | tojson }}",
+            "address": "{# pyagentspec-input-hint (do not remove): {{ address }} #}{{ address | tojson }}",
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}",
+            "nodeChanged": "{# pyagentspec-input-hint (do not remove): {{ nodeChanged }} #}{{ nodeChanged | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
@@ -1975,6 +2138,42 @@
             }
           },
           "default": []
+        },
+        {
+          "title": "nodeId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "address",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "error",
+          "type": "object",
+          "json_schema": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {}
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeChanged",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "cinatra_run_id",
@@ -2022,7 +2221,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent reads back the page snapshot revision the person approved, the one the review's answer names, by its revision id and never the latest revision. The values the write step writes come from this text only; without a usable reviewed change the run ends here and nothing is written. It also derives the shown blocks again from those values and the read, and ends the run when the reviewed text shows other words."
+          "description": "The agent reads back the page snapshot revision the person approved, the one the review's answer names, by its revision id and never the latest revision. The values the write step writes come from this text only; without a usable reviewed change the run ends here and nothing is written. It also derives the shown blocks again from those values and the read, and ends the run when the reviewed text shows other words, or is not a snapshot of this run's node."
         }
       }
     },
@@ -2472,7 +2671,9 @@
             "title": "{# pyagentspec-input-hint (do not remove): {{ title }} #}{{ title | tojson }}",
             "body": "{# pyagentspec-input-hint (do not remove): {{ body }} #}{{ body | tojson }}",
             "fieldValues": "{# pyagentspec-input-hint (do not remove): {{ fieldValues }} #}{{ fieldValues | tojson }}",
-            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}"
+            "error": "{# pyagentspec-input-hint (do not remove): {{ error }} #}{{ error | tojson }}",
+            "nodeStatus": "{# pyagentspec-input-hint (do not remove): {{ nodeStatus }} #}{{ nodeStatus | tojson }}",
+            "nodeChanged": "{# pyagentspec-input-hint (do not remove): {{ nodeChanged }} #}{{ nodeChanged | tojson }}"
           }
         },
         "agent_run_id": "{{ cinatra_run_id }}"
@@ -2553,6 +2754,16 @@
             }
           },
           "default": {}
+        },
+        {
+          "title": "nodeStatus",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "nodeChanged",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "cinatra_run_id",

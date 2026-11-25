@@ -56,7 +56,13 @@ const READ = {
   body: "<h2>When we open</h2><p>We open at <a href=\"/hours\">nine</a> on weekdays.</p><ul><li>Sunday: closed</li><li>Saturday: closed</li></ul>",
   fieldValues: [{ field: "field_note", value: "Plain note" }],
   address: "https://www.example.org/node/7",
+  nodeId: "7",
+  nodeStatus: "published",
+  nodeChanged: "1764000000",
 };
+
+/** The page record the form files for READ. */
+const PAGE = { nodeId: "7", status: "published", title: READ.title, address: READ.address, cmsAddress: `${READ.address}/edit` };
 
 /** The form call as the flow renders it: each value as JSON text. */
 const formCall = (writeFields, read = READ, error = { code: "", message: "" }) => ({
@@ -67,6 +73,9 @@ const formCall = (writeFields, read = READ, error = { code: "", message: "" }) =
   fieldValues: JSON.stringify(read.fieldValues),
   address: JSON.stringify(read.address),
   error: JSON.stringify(error),
+  nodeId: JSON.stringify(read.nodeId),
+  nodeStatus: JSON.stringify(read.nodeStatus),
+  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 
 const withBody = (body, publish = false) => ({ fields: [{ field: "body", value: body }], publish });
@@ -107,7 +116,7 @@ test("F2 the shown blocks are derived from the values to write: a changed headin
   assert.deepEqual(result.pageForm, {
     cinatraCmsPage: 1,
     system: "drupal",
-    page: { title: "Opening hours", address: READ.address, cmsAddress: `${READ.address}/edit` },
+    page: PAGE,
     writeFields: { fields: [{ field: "title", value: "Opening hours and holidays" }, { field: "body", value: body }], publish: true },
     excerpts: [
       { region: "title", position: 0, kind: "heading", level: 1, published: "Opening hours", proposed: "Opening hours and holidays" },
@@ -219,8 +228,10 @@ test("F7 a change that changes nothing is routed past the filing: next is no_cha
   const route = async (writeFields) => (await extensionTool({ input: formCall(writeFields), ports: {} })).next;
   assert.equal(await route({ fields: [], publish: false }), "no_change", "no values, no publish");
   assert.equal(await route({ fields: [{ field: "title", value: READ.title }, { field: "body", value: READ.body }], publish: false }), "no_change", "values equal to the read");
-  assert.equal(await route({ fields: [], publish: true }), "review", "a publish alone is reviewed");
-  assert.equal(await route({ fields: [{ field: "title", value: READ.title }], publish: true }), "review", "a publish with an equal value is reviewed");
+  // A publish with no change of text is refused: the display has nothing to draw for it.
+  await assert.rejects(route({ fields: [], publish: true }), refusedWithCode, "a publish alone");
+  await assert.rejects(route({ fields: [{ field: "title", value: READ.title }], publish: true }), refusedWithCode, "a publish with an equal value");
+  assert.equal(await route({ ...withBody(READ.body.replace("nine", "ten")), publish: true }), "review", "a publish with a change is reviewed");
   assert.equal(await route(withBody(READ.body.replace("nine", "ten"))), "review", "a change is reviewed");
 });
 
@@ -235,6 +246,11 @@ const readCall = (read = READ) => ({
   title: JSON.stringify(read.title),
   body: JSON.stringify(read.body),
   fieldValues: JSON.stringify(read.fieldValues),
+  address: JSON.stringify(read.address),
+  error: JSON.stringify({ code: "", message: "" }),
+  nodeId: JSON.stringify(read.nodeId),
+  nodeStatus: JSON.stringify(read.nodeStatus),
+  nodeChanged: JSON.stringify(read.nodeChanged),
 });
 const portsWith = (form) => ({
   artifacts: {
@@ -337,7 +353,9 @@ test("F12 a change whose compared part is too large is refused at the form and a
   const after = manyBlocks(5000, (i) => (i === 0 || i === 4999 ? `<p>Block ${i}, changed.</p>\n` : null));
   const tooLarge = (err) => refusedWithCode(err) && err.message.includes("more blocks than the page snapshot form can compare");
   await assert.rejects(extensionTool({ input: formCall(withBody(after), bodyRead(before)), ports: {} }), tooLarge, "at the form");
-  const snapshot = { cinatraCmsPage: 1, system: "drupal", page: {}, writeFields: withBody(after), excerpts: [] };
+  // A snapshot the display draws, of this node: only the comparison refuses it.
+  const shown = [{ region: "body", position: 0, kind: "paragraph", level: null, published: "a", proposed: "b" }];
+  const snapshot = { cinatraCmsPage: 1, system: "drupal", page: PAGE, writeFields: withBody(after), excerpts: shown };
   await assert.rejects(extensionTool({ input: readCall(bodyRead(before)), ports: portsWith(snapshot) }), tooLarge, "at the read-back");
 
   const blocks = manyBlocks(20001);

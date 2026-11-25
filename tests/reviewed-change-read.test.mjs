@@ -73,7 +73,7 @@ function snapshot(writeFields, over = {}) {
   return JSON.stringify({
     cinatraCmsPage: 1,
     system: "drupal",
-    page: { title: "Opening hours", address: null, cmsAddress: null },
+    page: { nodeId: "7", status: "draft", title: "Opening hours", address: null, cmsAddress: null },
     writeFields,
     excerpts: changesTitle ? [TITLE_EXCERPT] : [],
     ...over,
@@ -116,6 +116,11 @@ const call = (reviewAnswer, artifactId = FILED.artifactId) => ({
   title: JSON.stringify("Opening hours"),
   body: JSON.stringify(""),
   fieldValues: JSON.stringify([]),
+  address: JSON.stringify(""),
+  error: JSON.stringify({ code: "", message: "" }),
+  nodeId: JSON.stringify("7"),
+  nodeStatus: JSON.stringify("draft"),
+  nodeChanged: JSON.stringify("1764000000"),
 });
 
 async function load() {
@@ -216,11 +221,13 @@ test("V5 the tool reads the APPROVED revision the review's answer names, and ans
 
 test("V6 the publish branch also reads the reviewed revision: the publish flag comes from its text", async () => {
   const { extensionTool } = await load();
-  const publishOnly = { fields: [], publish: true };
-  const { ports } = portsAnswering(readOf(snapshot(publishOnly)));
+  const { ports } = portsAnswering(readOf(snapshot({ ...WRITE_FIELDS, publish: true })));
   const result = await extensionTool({ input: call(answer([FILED])), ports });
   assert.equal(result.reviewedPublish, true);
-  assert.deepEqual(result.reviewedFields, []);
+  assert.deepEqual(result.reviewedFields, WRITE_FIELDS.fields);
+  // A publish with no field to write is never filed (the form step refuses it), and never read back as one.
+  const { ports: publishOnly } = portsAnswering(readOf(snapshot({ fields: [], publish: true })));
+  await assert.rejects(extensionTool({ input: call(answer([FILED])), ports: publishOnly }), refusedWithCode, "a publish alone");
   for (const publish of ["true", 1, null, undefined]) {
     const { ports: bad } = portsAnswering(readOf(snapshot({ fields: WRITE_FIELDS.fields, publish })));
     await assert.rejects(extensionTool({ input: call(answer([FILED])), ports: bad }), refusedWithCode, `publish ${JSON.stringify(publish)}`);
@@ -342,9 +349,16 @@ test("V11 a change of nothing ends the run completed, past the filing and the re
 
   // What the steps answer for the compose step's answer to a request that changes nothing.
   const { extensionTool } = await load();
-  const read = { title: JSON.stringify("Opening hours"), body: JSON.stringify("<p>Open</p>"), fieldValues: JSON.stringify([]), error: JSON.stringify({ code: "", message: "" }) };
+  const read = {
+    title: JSON.stringify("Opening hours"),
+    body: JSON.stringify("<p>Open</p>"),
+    fieldValues: JSON.stringify([]),
+    error: JSON.stringify({ code: "", message: "" }),
+    nodeStatus: JSON.stringify("draft"),
+    nodeChanged: JSON.stringify("1764000000"),
+  };
   const nothing = JSON.stringify({ fields: [], publish: false });
-  const formed = await extensionTool({ input: { op: "form", writeFields: nothing, address: JSON.stringify(""), ...read }, ports: {} });
+  const formed = await extensionTool({ input: { op: "form", nodeId: JSON.stringify("7"), writeFields: nothing, address: JSON.stringify(""), ...read }, ports: {} });
   assert.equal(formed.next, "no_change");
   const outcome = await extensionTool({ input: { op: "unchanged", nodeId: JSON.stringify("7"), writeFields: nothing, ...read }, ports: {} });
   assert.deepEqual(outcome, { ok: true, nodeId: "7", changes: [], reason: "" });
