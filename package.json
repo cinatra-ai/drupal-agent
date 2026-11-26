@@ -1,6 +1,6 @@
 {
   "name": "@cinatra-ai/drupal-agent",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "Apache-2.0",
   "description": "Edits Drupal content nodes from natural language instructions via the Drupal MCP server.",
   "type": "module",
@@ -61,10 +61,6 @@
       }
     ],
     "tools": [
-      {
-        "name": "review_targets",
-        "module": "./cinatra/tools/review-targets.mjs"
-      },
       {
         "name": "settle_outcome",
         "module": "./cinatra/tools/settle-outcome.mjs"
