@@ -1224,13 +1224,10 @@
       "url": "{{CINATRA_BASE_URL}}/api/agents/passthrough",
       "http_method": "POST",
       "data": {
-        "tool": "extension_tool",
+        "tool": "artifacts_get",
         "input": {
-          "name": "review_targets",
-          "input": {
-            "op": "review",
-            "reviewTargets": "[{\"artifactId\": \"{{ pageArtifactId }}\", \"representationRevisionId\": \"{{ pageRevisionId }}\"}]"
-          }
+          "artifactId": "{{ pageArtifactId }}",
+          "reviewTargets": "[{\"artifactId\": \"{{ pageArtifactId }}\", \"representationRevisionId\": \"{{ pageRevisionId }}\"}]"
         },
         "agent_run_id": "{{ cinatra_run_id }}",
         "result_input_passthrough": true,
@@ -1258,20 +1255,15 @@
           "title": "reviewTargets",
           "type": "string",
           "default": "[]"
-        },
-        {
-          "title": "ok",
-          "type": "boolean",
-          "default": false
         }
       ],
       "metadata": {
         "cinatra": {
-          "riskClass": "write",
+          "riskClass": "read_only",
           "publishes": false,
           "requiresApproval": false,
           "packageName": "@cinatra-ai/drupal-agent",
-          "description": "The agent reads the page, files the page snapshot with the published and the proposed words, the application reviews it, and the write step follows the review."
+          "description": "The step reads the filed page snapshot with the application's artifacts_get, so a snapshot this package may not read ends the run before the review. The application then gives back the call's input, so the one-target set (the filed snapshot and its revision) reaches the review step as JSON text. The review step checks that set itself. This step writes nothing."
         }
       }
     },

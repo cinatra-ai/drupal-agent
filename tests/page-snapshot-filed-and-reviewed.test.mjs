@@ -7,7 +7,8 @@
 // The eight arms pin: the ten steps on one road; the read step; the compose
 // step and the one example form it carries; the filing step and the type the
 // pack declares it produces; the projection step and the review step; the write
-// step after the review; the declared module; and the end node binding nothing.
+// step after the review; no module of the pack in the review's road; and the
+// end node binding nothing.
 //
 // Zero-dependency; runs on plain node:test via tests/run.mjs.
 
@@ -389,16 +390,15 @@ test("S5 the projection step names the filed revision to the review step, the fl
   const node = part("gather_page_review");
   assert.equal(node.component_type, "ApiNode");
   assert.ok(node.url.includes(PASSTHROUGH_PATH), "the projection step is a passthrough step");
-  assert.equal(node.data.tool, "extension_tool");
-  assert.equal(node.data.input.name, "review_targets");
-  assert.deepEqual(Object.keys(node.data.input.input).sort(), ["op", "reviewTargets"]);
-  assert.equal(node.data.input.input.op, "review");
-  assert.equal(node.data.result_input_passthrough, true);
-  assert.equal(node.data.result_id_field, "ok");
+  assert.equal(node.data.tool, "artifacts_get", "the application's own artifact read, no module of the pack");
+  assert.deepEqual(Object.keys(node.data.input).sort(), ["artifactId", "reviewTargets"]);
+  assert.equal(node.data.input.artifactId, "{{ pageArtifactId }}", "the read names the filed snapshot");
+  assert.equal(node.data.result_input_passthrough, true, "the application gives the input back as the step's result");
   assert.equal(node.data.agent_run_id, "{{ cinatra_run_id }}");
-  assert.deepEqual(titles(node.outputs), ["reviewTargets", "ok"]);
+  assert.deepEqual(titles(node.outputs), ["reviewTargets"]);
+  assert.equal(node.metadata.cinatra.riskClass, "read_only");
 
-  const template = node.data.input.input.reviewTargets;
+  const template = node.data.input.reviewTargets;
   assert.equal(typeof template, "string", "one JSON array string");
   const rendered = template.replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_m, name) => `RENDERED-${name}`);
   const targets = JSON.parse(rendered);
@@ -440,36 +440,15 @@ test("S6 the write step follows the review", () => {
   assert.deepEqual(titles(node.outputs), ["nodeId", "changes", "reason", "outcome"]);
 });
 
-test("S7 the declared module files the set it is handed and nothing else", async () => {
+test("S7 no module of the pack hands the review set over: the only declared module is settle_outcome", () => {
   assert.deepEqual(pkg.cinatra.tools, [
-    { name: "review_targets", module: "./cinatra/tools/review-targets.mjs" },
     { name: "settle_outcome", module: "./cinatra/tools/settle-outcome.mjs" },
   ]);
-  const { extensionTool } = await import("../cinatra/tools/review-targets.mjs");
-  assert.equal(typeof extensionTool, "function");
-
-  const reference = { artifactId: "artifact-001", representationRevisionId: "revision-001" };
-  const filed = [];
-  const ports = {
-    review: {
-      file(targets) {
-        filed.push(targets);
-      },
-    },
-  };
-  const result = await extensionTool({
-    input: { op: "review", reviewTargets: JSON.stringify([reference]) },
-    ports,
-  });
-  assert.deepEqual(result, { ok: true });
-  assert.deepEqual(filed, [[reference]], "the parsed set is filed once");
-
-  await assert.rejects(
-    async () => extensionTool({ input: { op: "prepare" }, ports }),
-    (err) => err instanceof Error && err.message.includes("review"),
-    "an unknown op rejects, naming the one op it knows",
-  );
-  assert.equal(filed.length, 1, "a refused op files nothing");
+  const calls = (oas.nodes ?? [])
+    .map((n) => parts[n.$component_ref])
+    .filter((node) => node?.data?.tool === "extension_tool")
+    .map((node) => node.data.input?.name);
+  assert.deepEqual(calls, ["settle_outcome"], "the review set is not handed over by an extension_tool call");
 });
 
 test("S8 the end node preserves the content outputs with a visible refusal reason and binds nothing: the snapshot is filed during the run", () => {
